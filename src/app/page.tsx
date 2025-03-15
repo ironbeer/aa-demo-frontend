@@ -1,8 +1,38 @@
 import Image from "next/image";
 
+import { registration } from "@/lib/client";
+
 export default function Home() {
+  // パスキーの新規登録を開始する
+  const startRegistration = async () => {
+    // パスキー登録用のOptionsをAPIから取得
+    const options = await registration.generateRegistrationOptions();
+    if (options instanceof Error) {
+      console.error(options);
+      return;
+    }
+
+    // デバイス認証を開始
+    const resp = await registration.startRegistration(options);
+
+    // デバイス認証の結果をAPIに送信
+    const verifiedResp = await registration.verifyRegistration(resp);
+
+    // パスキー登録完了
+    console.log(verifiedResp);
+  };
+
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
+      {/* ヘッダーの右端に青背景色に白文字の`Create SmartWallet`ボタンのみ表示 */}
+      <header className="row-start-1 flex justify-end w-full">
+        <button
+          onClick={startRegistration}
+          className="bg-blue-500 text-white font-semibold py-2 px-4 rounded"
+        >
+          Create SmartWallet
+        </button>
+      </header>
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
         <Image
           className="dark:invert"
