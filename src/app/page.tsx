@@ -1,27 +1,52 @@
 "use client";
 
 import Image from "next/image";
-
+import { useState } from "react";
 import { registration } from "@/lib/client";
 
+type Log = {
+  data: string;
+  message: string;
+};
+
 export default function Home() {
+  // ログレコード達
+  const [logs, setLogs] = useState<Log[]>([]);
+  const pushLog = (log: string | object) => {
+    setLogs((prevLogs) => {
+      const newLog = {
+        data: new Date().toLocaleString("ja-JP"),
+        message: typeof log === "string" ? log : JSON.stringify(log, null, 2),
+      };
+      return [newLog, ...prevLogs];
+    });
+  };
+
   // パスキーの新規登録を開始する
   const startRegistration = async () => {
-    // パスキー登録用のOptionsをAPIから取得
-    const options = await registration.generateRegistrationOptions();
-    if (options instanceof Error) {
-      console.error(options);
+    // キー名を入力してもらう
+    const keyName = prompt("Enter a key name");
+    if (!keyName) {
       return;
     }
 
+    // パスキー登録用のOptionsをAPIから取得
+    const options = await registration.generateRegistrationOptions({
+      key_name: keyName,
+    });
+    if (options instanceof Error) {
+      pushLog(options.message);
+      return;
+    }
+    pushLog(options);
+
     // デバイス認証を開始
     const resp = await registration.startRegistration(options);
+    pushLog(resp);
 
-    // デバイス認証の結果をAPIに送信
+    // デバイス認証の結果をAPIに送信してパスキー登録を完了する
     const verifiedResp = await registration.verifyRegistration(resp);
-
-    // パスキー登録完了
-    console.log(verifiedResp);
+    pushLog(verifiedResp);
   };
 
   return (
@@ -34,9 +59,35 @@ export default function Home() {
         >
           Create SmartWallet
         </button>
+
+        {/* デバイス認証結果送信だけをするボタン */}
       </header>
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
+        {/* ログをスクロール可能なテーブルで表示 */}
+        <table className="w-full">
+          <thead>
+            <tr>
+              <th className="text-left">Date</th>
+              <th className="text-left pl-4">Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.map((log, index) => (
+              <tr key={index}>
+                {/* 時間は上詰めの折り返しなしで表示 */}
+                <td className="text-left align-top whitespace-nowrap pb-4">
+                  {log.data}
+                </td>
+                {/* メッセージは画面幅最大で後は折返しで表示 */}
+                <td className="text-left pl-4 align-top break-all pb-4">
+                  {log.message}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* <Image
           className="dark:invert"
           src="/next.svg"
           alt="Next.js logo"
@@ -81,7 +132,7 @@ export default function Home() {
           >
             Read our docs
           </a>
-        </div>
+        </div> */}
       </main>
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
         <a

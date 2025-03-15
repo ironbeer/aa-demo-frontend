@@ -1,5 +1,4 @@
 import {
-  PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
@@ -7,12 +6,13 @@ import {
   startRegistration as startRegistrationBrowser,
   startAuthentication as startAuthenticationBrowser,
 } from "@simplewebauthn/browser";
+import {
+  GenerateRegistrationOptionsRequest,
+  GenerateRegistrationOptionsResponse,
+  VerifiedRegistrationResponse,
+} from "@/lib/types";
 
 // API側での検証レスポンス
-type VerifiedRegistrationResponse = {
-  verified: boolean;
-  registrationInfo: unknown;
-};
 type VerifiedAuthenticationResponse = {
   verified: boolean;
   authenticationInfo: unknown;
@@ -27,8 +27,9 @@ class APIError extends Error {
 
 // APIルートのURL一覧
 const endpoints = {
-  generateRegistrationOptions: "/api/01-generate-registration-options",
-  verifyRegistration: "/api/02-verify-registration",
+  generateRegistrationOptions:
+    "/api/registration/generate-registration-options",
+  verifyRegistration: "/api/registration/verify-registration",
   generateAuthenticationOptions: "/api/03-generate-authentication-options",
   verifyAuthentication: "/api/04-verify-authentication",
 } as const;
@@ -47,16 +48,20 @@ const getJsonRseponse = async <T>(res: Response): Promise<APIError | T> => {
 };
 
 // APIからパスキー登録用のOptionsを取得する
-const generateRegistrationOptions = async (): Promise<
-  APIError | PublicKeyCredentialCreationOptionsJSON
-> => {
-  const res = await fetch(endpoints.generateRegistrationOptions);
-  return await getJsonRseponse(res);
+const generateRegistrationOptions = async (
+  params: GenerateRegistrationOptionsRequest
+) => {
+  const res = await fetch(endpoints.generateRegistrationOptions, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return await getJsonRseponse<GenerateRegistrationOptionsResponse>(res);
 };
 
 // APIから取得したパスキー登録用Optionsを使用してデバイス認証を行う
 const startRegistration = async (
-  optionsJSON: PublicKeyCredentialCreationOptionsJSON
+  optionsJSON: GenerateRegistrationOptionsResponse
 ): Promise<RegistrationResponseJSON> => {
   try {
     // Pass the options to the authenticator and wait for a response
@@ -73,23 +78,19 @@ const startRegistration = async (
 };
 
 // パスキー登録のデバイス認証の結果をAPIに送信
-const verifyRegistration = async (
-  resp: RegistrationResponseJSON
-): Promise<APIError | VerifiedRegistrationResponse> => {
+const verifyRegistration = async (resp: RegistrationResponseJSON) => {
   const res = await fetch(endpoints.verifyRegistration, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(resp),
   });
-  return await getJsonRseponse(res);
+  return await getJsonRseponse<VerifiedRegistrationResponse>(res);
 };
 
 // APIからパスキー認証用のOptionsを取得する
-const generateAuthenticationOptions = async (): Promise<
-  APIError | PublicKeyCredentialRequestOptionsJSON
-> => {
+const generateAuthenticationOptions = async () => {
   const res = await fetch(endpoints.generateAuthenticationOptions);
-  return await getJsonRseponse(res);
+  return await getJsonRseponse<PublicKeyCredentialRequestOptionsJSON>(res);
 };
 
 // APIから取得したパスキー認証用Optionsを使用してデバイス認証を行う
@@ -100,15 +101,13 @@ const startAuthentication = async (
 };
 
 // パスキー認証のデバイス認証の結果をAPIに送信
-const verifyAuthentication = async (
-  resp: AuthenticationResponseJSON
-): Promise<APIError | VerifiedAuthenticationResponse> => {
+const verifyAuthentication = async (resp: AuthenticationResponseJSON) => {
   const res = await fetch(endpoints.verifyAuthentication, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(resp),
   });
-  return await getJsonRseponse(res);
+  return await getJsonRseponse<VerifiedAuthenticationResponse>(res);
 };
 
 const registration = {
