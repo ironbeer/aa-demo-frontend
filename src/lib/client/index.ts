@@ -1,22 +1,22 @@
 import {
-  PublicKeyCredentialRequestOptionsJSON,
-  RegistrationResponseJSON,
-  AuthenticationResponseJSON,
-  WebAuthnError,
-  startRegistration as startRegistrationBrowser,
-  startAuthentication as startAuthenticationBrowser,
-} from "@simplewebauthn/browser";
-import {
+  ComputeWalletAddressRequest,
+  ComputeWalletAddressResponse,
+  ExecuteUserOperationRequest,
+  ExecuteUserOperationResponse,
+  GenerateAuthenticationOptionsResponse,
   GenerateRegistrationOptionsRequest,
   GenerateRegistrationOptionsResponse,
+  GenerateUserOperationHashOptionsRequest,
+  GenerateUserOperationHashOptionsResponse,
   VerifiedRegistrationResponse,
 } from "@/lib/types";
-
-// API側での検証レスポンス
-type VerifiedAuthenticationResponse = {
-  verified: boolean;
-  authenticationInfo: unknown;
-};
+import {
+  AuthenticationResponseJSON,
+  RegistrationResponseJSON,
+  WebAuthnError,
+  startAuthentication as startAuthenticationBrowser,
+  startRegistration as startRegistrationBrowser,
+} from "@simplewebauthn/browser";
 
 // API呼び出しエラー
 class APIError extends Error {
@@ -27,11 +27,12 @@ class APIError extends Error {
 
 // APIルートのURL一覧
 const endpoints = {
-  generateRegistrationOptions:
-    "/api/registration/generate-registration-options",
-  verifyRegistration: "/api/registration/verify-registration",
-  generateAuthenticationOptions: "/api/03-generate-authentication-options",
-  verifyAuthentication: "/api/04-verify-authentication",
+  generateRegistrationOptions: "/api/generate-registration-options",
+  verifyRegistration: "/api/verify-registration",
+  generateAuthenticationOptions: "/api/generate-authentication-options",
+  computeWalletAddress: "/api/compute-wallet-address",
+  generateUserOpHashOptions: "/api/generate-user-operation-hash-options",
+  executeUserOperation: "/api/execute-user-operation",
 } as const;
 
 // API呼び出し結果からJSONを取り出す、JSONで無い場合は例外を投げる
@@ -90,24 +91,46 @@ const verifyRegistration = async (resp: RegistrationResponseJSON) => {
 // APIからパスキー認証用のOptionsを取得する
 const generateAuthenticationOptions = async () => {
   const res = await fetch(endpoints.generateAuthenticationOptions);
-  return await getJsonRseponse<PublicKeyCredentialRequestOptionsJSON>(res);
+  return await getJsonRseponse<GenerateAuthenticationOptionsResponse>(res);
 };
 
 // APIから取得したパスキー認証用Optionsを使用してデバイス認証を行う
 const startAuthentication = async (
-  optionsJSON: PublicKeyCredentialRequestOptionsJSON
+  optionsJSON: GenerateAuthenticationOptionsResponse
 ): Promise<AuthenticationResponseJSON> => {
   return await startAuthenticationBrowser({ optionsJSON });
 };
 
-// パスキー認証のデバイス認証の結果をAPIに送信
-const verifyAuthentication = async (resp: AuthenticationResponseJSON) => {
-  const res = await fetch(endpoints.verifyAuthentication, {
+// デバイス認証の結果を利用してウォレットアドレスを取得
+const computeWalletAddress = async (resp: ComputeWalletAddressRequest) => {
+  const res = await fetch(endpoints.computeWalletAddress, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(resp),
   });
-  return await getJsonRseponse<VerifiedAuthenticationResponse>(res);
+  return await getJsonRseponse<ComputeWalletAddressResponse>(res);
+};
+
+// APIからUserOperation署名用Optionsを取得する
+const generateUserOpHashOptions = async (
+  params: GenerateUserOperationHashOptionsRequest
+) => {
+  const res = await fetch(endpoints.generateUserOpHashOptions, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return await getJsonRseponse<GenerateUserOperationHashOptionsResponse>(res);
+};
+
+// UserOperation実行APIを呼び出す
+const executeUserOperation = async (params: ExecuteUserOperationRequest) => {
+  const res = await fetch(endpoints.executeUserOperation, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return await getJsonRseponse<ExecuteUserOperationResponse>(res);
 };
 
 const registration = {
@@ -119,7 +142,9 @@ const registration = {
 const authentication = {
   generateAuthenticationOptions,
   startAuthentication,
-  verifyAuthentication,
+  computeWalletAddress,
+  generateUserOpHashOptions,
+  executeUserOperation,
 };
 
-export { APIError, endpoints, registration, authentication };
+export { APIError, authentication, endpoints, registration };

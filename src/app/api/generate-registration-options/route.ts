@@ -10,15 +10,15 @@ import { generateAPIRoute } from "@/app/api/utils";
 export const POST = generateAPIRoute<GenerateRegistrationOptionsResponse>(
   async (request: NextRequest) => {
     const body = (await request.json()) as GenerateRegistrationOptionsRequest;
-    if (!body.key_name) {
+    if (!body.keyName) {
       return { status: 400, json: { detail: "key_name is required" } };
     }
 
-    // 登録開始用Optionsを生成してDBに保存
+    // 登録用Optionsを生成してDBに保存
     const options = await generateRegistrationOptions({
       rpName,
       rpID,
-      userName: body.key_name,
+      userName: body.keyName,
       // Don't prompt users for additional information about the authenticator
       // (Recommended for smoother UX)
       attestationType: "none",

@@ -21,8 +21,7 @@ const getValue = async <T>(key: string): Promise<T | null> => {
 
   try {
     return JSON.parse(value as string) as T;
-  } catch (error) {
-    console.error(error);
+  } catch {
     return value as unknown as T;
   }
 };

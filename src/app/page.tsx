@@ -1,186 +1,279 @@
 "use client";
 
-import Image from "next/image";
+import {
+  CallForm,
+  CreateWalletDialog,
+  LogTable,
+  WalletTable,
+} from "@/components";
+import {
+  encodeCallsForExecuteBatch,
+  getEntryPoint,
+  getPublicClient,
+} from "@/lib/blockchain";
+import { authentication } from "@/lib/client";
+import {
+  CoinbaseSmartWallet_Call,
+  EntryPoint_UserOperation,
+} from "@/lib/types";
+import { Wallet, useLoggerStore, useWalletStore } from "@/store";
+import { Box, Button, Grid2, Modal } from "@mui/material";
 import { useState } from "react";
-import { registration } from "@/lib/client";
-
-type Log = {
-  data: string;
-  message: string;
-};
+import { Address } from "viem";
 
 export default function Home() {
-  // ログレコード達
-  const [logs, setLogs] = useState<Log[]>([]);
-  const pushLog = (log: string | object) => {
-    setLogs((prevLogs) => {
-      const newLog = {
-        data: new Date().toLocaleString("ja-JP"),
-        message: typeof log === "string" ? log : JSON.stringify(log, null, 2),
-      };
-      return [newLog, ...prevLogs];
-    });
+  const { logs, getLogger } = useLoggerStore();
+  const logger = getLogger();
+
+  const {
+    wallets,
+    calls: walletCalls,
+    saveWallet,
+    replaceCalls,
+  } = useWalletStore();
+  const filterCalls = (sender: Address) => walletCalls[sender] ?? [];
+
+  // ウォレット作成ダイアログの表示フラグ
+  const [showWalletDialog, setShowWalletDialog] = useState(false);
+
+  // 現在開いているCallFormと関連付けられているウォレット
+  const [activeCallFormWallet, setActiveCallFormWallet] =
+    useState<null | Wallet>(null);
+
+  // ウォレット作成フォームの送信処理
+  const onSubmitCreateWalletForm = (wallet: Wallet) => {
+    saveWallet(wallet);
+    onCloseCreateWalletForm();
   };
 
-  // パスキーの新規登録を開始する
-  const startRegistration = async () => {
-    // キー名を入力してもらう
-    const keyName = prompt("Enter a key name");
-    if (!keyName) {
+  // ウォレット作成フォームのクローズ処理
+  const onCloseCreateWalletForm = () => setShowWalletDialog(false);
+
+  // CallFormの送信処理
+  const onSubmitCallForm = (
+    wallet: Wallet,
+    calls: CoinbaseSmartWallet_Call[]
+  ) => {
+    replaceCalls(wallet.address, calls);
+    onCloseCallForm();
+  };
+
+  // CallFormのクローズ処理
+  const onCloseCallForm = () => setActiveCallFormWallet(null);
+
+  // トランザクション送信
+  const onClickSendTransaction = async (
+    wallet: Wallet,
+    usePaymaster: boolean
+  ) => {
+    const calls = filterCalls(wallet.address);
+    if (!calls.length) return;
+
+    const rpc = getPublicClient();
+    const entryPoint = getEntryPoint({ rpc });
+
+    // ナンス値はEntryPoint.getNonce(address sender, uint192 key)で取得する
+    const nonceKey = Math.round(Math.random() * 1e9);
+    logger.info("EntryPoint.getNonce.request", {
+      sender: wallet.address,
+      key: nonceKey,
+    });
+    const nonce = await entryPoint.read.getNonce([wallet.address, nonceKey]);
+    if (typeof nonce !== "bigint") {
+      logger.error("EntryPoint.getNonce.error", String(nonce));
       return;
+    }
+    logger.info("EntryPoint.getNonce.response", { nonce: nonce.toString() });
+
+    // basefeeを取得
+    const block = await getPublicClient().getBlock();
+    const basefee = Number(block.baseFeePerGas!);
+
+    let verificationGasLimit = 450_000 * calls.length;
+    const walletCode = await rpc.getCode({ address: wallet.address });
+    if (!walletCode || walletCode.length === 0) {
+      // 初回TX時はウォレットコントラクトのデプロイ処理が入るのでガスを多めにする
+      verificationGasLimit += 200_000;
     }
 
-    // パスキー登録用のOptionsをAPIから取得
-    const options = await registration.generateRegistrationOptions({
-      key_name: keyName,
-    });
-    if (options instanceof Error) {
-      pushLog(options.message);
+    // UserOperationを作成
+    let userOp: EntryPoint_UserOperation = {
+      sender: wallet.address,
+      nonce: nonce.toString(),
+      callData: encodeCallsForExecuteBatch(calls),
+      callGasLimit: 21_000 * calls.length,
+      verificationGasLimit,
+      preVerificationGas: 390_000 * calls.length,
+      maxFeePerGas: basefee,
+      maxPriorityFeePerGas: basefee,
+      // 以下はAPIサーバ側で追加される
+      initCode: "0x",
+      paymasterAndData: "0x",
+      signature: "0x",
+    };
+
+    // APIサーバに認証用OptionsJSONの生成とinitCodeの追加を依頼
+    const ophashReq = {
+      userOp,
+      passkeyID: wallet.passkeyID,
+      walletNonce: wallet.nonce,
+      usePaymaster,
+    };
+    logger.info("generateUserOpHashOptions.request", ophashReq);
+    const ophashRes = await authentication.generateUserOpHashOptions(ophashReq);
+    if (ophashRes instanceof Error) {
+      logger.error("generateUserOpHashOptions.error", ophashRes.message);
       return;
     }
-    pushLog(options);
+    logger.info("generateUserOpHashOptions.response", ophashRes);
+
+    // 初めてウォレットを利用する場合はinitCodeが追加されているのでuserOpを入れ替える
+    userOp = ophashRes.userOp;
 
     // デバイス認証を開始
-    const resp = await registration.startRegistration(options);
-    pushLog(resp);
+    const response = await authentication.startAuthentication(
+      ophashRes.options
+    );
+    logger.info("startAuthentication.response", response);
 
-    // デバイス認証の結果をAPIに送信してパスキー登録を完了する
-    const verifiedResp = await registration.verifyRegistration(resp);
-    pushLog(verifiedResp);
+    // APIサーバに認証結果を送信してsignature追加とトランザクション実行を依頼
+    const executeReq = { response, userOp };
+    logger.info("executeUserOperation.request", executeReq);
+    const executeRes = await authentication.executeUserOperation(executeReq);
+    if (executeRes instanceof Error) {
+      logger.error("executeUserOperation.error", executeRes.message);
+      return;
+    }
+    logger.info("executeUserOperation.response", executeRes);
+
+    if (executeRes.success) {
+      window.alert("Transaction succeeded");
+      replaceCalls(wallet.address, []);
+    } else {
+      window.alert("Transaction failed");
+    }
   };
 
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      {/* ヘッダーの右端に青背景色に白文字の`Create SmartWallet`ボタンのみ表示 */}
-      <header className="row-start-1 flex justify-end w-full">
-        <button
-          onClick={startRegistration}
-          className="bg-blue-500 text-white font-semibold py-2 px-4 rounded"
+    <>
+      <Grid2 container spacing={4} justifyContent="center" sx={{ mt: 4 }}>
+        <Grid2 size={10}>
+          <header className="row-start-1 flex justify-end w-full">
+            {/* ウォレット作成ボタン */}
+            <Button
+              onClick={() => setShowWalletDialog(true)}
+              variant="contained"
+              size="large"
+              color="success"
+              sx={{ textTransform: "none", borderRadius: 6 }}
+            >
+              Create a smart wallet
+            </Button>
+          </header>
+        </Grid2>
+
+        <Grid2 size={10}>
+          <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+            <Grid2 container spacing={2} sx={{ mt: 4 }} size={12}>
+              <WalletTable
+                wallets={wallets}
+                renderActions={({ wallet }) => (
+                  <Grid2 container spacing={2} justifyContent={"flex-end"}>
+                    {/* CallFormを開くボタン */}
+                    <Button
+                      onClick={() => setActiveCallFormWallet(wallet)}
+                      variant="outlined"
+                      sx={{ textTransform: "none" }}
+                    >
+                      Edit Calls ({filterCalls(wallet.address).length})
+                    </Button>
+                    {/* トランザクション送信実行 */}
+                    <Button
+                      onClick={() => onClickSendTransaction(wallet, false)}
+                      disabled={filterCalls(wallet.address).length === 0}
+                      variant="contained"
+                      sx={{ textTransform: "none" }}
+                    >
+                      Send TX
+                    </Button>
+                    {/* Paymasterを使用したトランザクション送信実行ボタン */}
+                    <Button
+                      onClick={() => onClickSendTransaction(wallet, true)}
+                      disabled={filterCalls(wallet.address).length === 0}
+                      variant="contained"
+                      sx={{ textTransform: "none" }}
+                    >
+                      Send TX with Paymaster
+                    </Button>
+                  </Grid2>
+                )}
+              />
+              <Grid2
+                container
+                size={12}
+                justifyContent="flex-end"
+                sx={{ mr: 2 }}
+              >
+                <Grid2>
+                  <Button variant="contained" sx={{ textTransform: "none" }}>
+                    Batch Send Transaction
+                  </Button>
+                </Grid2>
+              </Grid2>
+            </Grid2>
+
+            <Box sx={{ mt: 4 }}>
+              <LogTable logs={logs} />
+            </Box>
+          </main>
+        </Grid2>
+      </Grid2>
+
+      {/* ウォレット作成モーダル */}
+      <Modal open={showWalletDialog} onClose={onCloseCreateWalletForm}>
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 600,
+            bgcolor: "background.paper",
+            boxShadow: 24,
+            p: 4,
+            borderRadius: 2,
+          }}
         >
-          Create SmartWallet
-        </button>
+          <CreateWalletDialog onCreated={onSubmitCreateWalletForm} />
+        </Box>
+      </Modal>
 
-        {/* デバイス認証結果送信だけをするボタン */}
-      </header>
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        {/* ログをスクロール可能なテーブルで表示 */}
-        <table className="w-full">
-          <thead>
-            <tr>
-              <th className="text-left">Date</th>
-              <th className="text-left pl-4">Message</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log, index) => (
-              <tr key={index}>
-                {/* 時間は上詰めの折り返しなしで表示 */}
-                <td className="text-left align-top whitespace-nowrap pb-4">
-                  {log.data}
-                </td>
-                {/* メッセージは画面幅最大で後は折返しで表示 */}
-                <td className="text-left pl-4 align-top break-all pb-4">
-                  {log.message}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+      {/* Call編集モーダル */}
+      <Modal open={!!activeCallFormWallet} onClose={onCloseCallForm}>
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "60%",
+            bgcolor: "background.paper",
+            boxShadow: 24,
+            p: 4,
+            borderRadius: 2,
+          }}
+        >
+          {activeCallFormWallet && (
+            <CallForm
+              sender={activeCallFormWallet.address}
+              initCalls={filterCalls(activeCallFormWallet.address)}
+              onSubmit={(calls) =>
+                onSubmitCallForm(activeCallFormWallet!, calls)
+              }
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div> */}
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          )}
+        </Box>
+      </Modal>
+    </>
   );
 }

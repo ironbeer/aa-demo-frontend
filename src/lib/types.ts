@@ -1,12 +1,15 @@
 import type {
-  AuthenticatorTransportFuture,
-  CredentialDeviceType,
-  Base64URLString,
-} from "@simplewebauthn/server";
-import type {
+  AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from "@simplewebauthn/browser";
+import type {
+  AuthenticatorTransportFuture,
+  Base64URLString,
+  CredentialDeviceType,
+} from "@simplewebauthn/server";
+import { Address, Hex } from "viem";
 
 /**
  * It is strongly advised that credentials get their own DB
@@ -49,7 +52,7 @@ export type APIError = { detail: string };
  */
 export type GenerateRegistrationOptionsRequest = {
   // パスキーの名前
-  key_name?: string;
+  keyName?: string;
 };
 
 /**
@@ -67,6 +70,115 @@ export type VerifyRegistrationRequest = RegistrationResponseJSON;
  * パスキー登録デバイス認証結果検証APIのレスポンス型
  */
 export type VerifiedRegistrationResponse = {
-  verified: boolean;
-  registrationInfo: unknown;
+  passkeyID: string;
+  nonce: 0;
+  address: Address; // 公開鍵とnonce=0から計算されたウォレットアドレス
+};
+
+/**
+ * パスキー認証用Options取得APIのレスポンス型
+ */
+export type GenerateAuthenticationOptionsResponse =
+  PublicKeyCredentialRequestOptionsJSON;
+
+/**
+ * ウォレットアドレス取得APIのリクエスト型
+ */
+export type ComputeWalletAddressRequest = {
+  response: AuthenticationResponseJSON;
+  nonce: number; // ナンス値、ウォレットアドレス計算に使用される
+};
+
+/**
+ * ウォレットアドレス取得APIのレスポンス型
+ */
+export type ComputeWalletAddressResponse = {
+  passkeyID: string;
+  nonce: number;
+  address: Address;
+};
+
+/**
+ * AccountAbstractionで定義されているUserOperation型
+ */
+export type EntryPoint_UserOperation = {
+  sender: Address;
+  nonce: string;
+  initCode: Hex;
+  callData: Hex;
+  callGasLimit: number;
+  verificationGasLimit: number;
+  preVerificationGas: number;
+  maxFeePerGas: number;
+  maxPriorityFeePerGas: number;
+  paymasterAndData: Hex;
+  signature: Hex;
+};
+
+/**
+ * CoinbaseSmartWalletで定義されているCall型
+ */
+export type CoinbaseSmartWallet_Call = {
+  target: Address;
+  value: string;
+  data: Hex;
+};
+
+/**
+ * CoinbaseSmartWalletで定義されているWebAuthnAuth型
+ */
+export type CoinbaseSmartWallet_WebAuthnAuth = {
+  authenticatorData: Hex;
+  clientDataJSON: string;
+  challengeIndex: bigint;
+  typeIndex: bigint;
+  r: bigint;
+  s: bigint;
+};
+
+/**
+ * CoinbaseSmartWalletで定義されているSignatureWrapper型
+ */
+export type CoinbaseSmartWallet_SignatureWrapper = {
+  ownerIndex: number;
+  signatureData: Hex; // should be `abi.encode(WebAuthnAuth)`
+};
+
+/**
+ * UserOperation署名用Options取得APIのリクエスト型
+ */
+export type GenerateUserOperationHashOptionsRequest = {
+  passkeyID: Base64URLString;
+  userOp: EntryPoint_UserOperation;
+  walletNonce: number;
+  usePaymaster: boolean;
+};
+
+/**
+ * UserOperation署名用Options取得APIのレスポンス型
+ */
+export type GenerateUserOperationHashOptionsResponse = {
+  options: PublicKeyCredentialRequestOptionsJSON;
+  userOp: EntryPoint_UserOperation; // initCode等が追加されている
+  userOpHash: Hex;
+};
+
+/**
+ * UserOperation実行APIのリクエスト型
+ */
+export type ExecuteUserOperationRequest = {
+  response: AuthenticationResponseJSON;
+  userOp: EntryPoint_UserOperation;
+};
+
+/**
+ * UserOperation実行APIのレスポンス型
+ */
+export type ExecuteUserOperationResponse = {
+  success: boolean;
+  receipt: {
+    transaction: Hex;
+    gasUsed: number;
+    status: "success" | "reverted";
+  };
 };

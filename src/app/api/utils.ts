@@ -1,5 +1,5 @@
-import { NextRequest } from "next/server";
 import { APIError } from "@/lib/types";
+import { NextRequest } from "next/server";
 
 export type RequestHandler<T> = (
   request: NextRequest

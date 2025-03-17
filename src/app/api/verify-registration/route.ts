@@ -1,16 +1,18 @@
-import { NextRequest } from "next/server";
+import { generateAPIRoute } from "@/app/api/utils";
+import { computeWalletAddress } from "@/lib/blockchain";
+import { datastore, rpID, rpOrigin } from "@/lib/server";
 import {
-  verifyRegistrationResponse,
+  Passkey,
+  VerifiedRegistrationResponse,
+  VerifyRegistrationRequest,
+} from "@/lib/types";
+import {
   VerifiedRegistrationResponse as VerifiedRegistrationResponseServer,
+  verifyRegistrationResponse,
 } from "@simplewebauthn/server";
 import { decodeClientDataJSON } from "@simplewebauthn/server/helpers";
-import { rpID, rpOrigin, datastore } from "@/lib/server";
-import {
-  VerifyRegistrationRequest,
-  VerifiedRegistrationResponse,
-  Passkey,
-} from "@/lib/types";
-import { generateAPIRoute } from "@/app/api/utils";
+import { NextRequest } from "next/server";
+import { Address } from "viem";
 
 export const POST = generateAPIRoute<VerifiedRegistrationResponse>(
   async (request: NextRequest) => {
@@ -71,11 +73,24 @@ export const POST = generateAPIRoute<VerifiedRegistrationResponse>(
     if (await datastore.getPasskey(newPassKey.id)) {
       return { status: 400, json: { detail: "Passkey already exists" } };
     }
-
     await datastore.storePasskey(newPassKey);
+
+    // ウォレットアドレスを計算
+    let address: Address;
+    try {
+      const { address: computed } = await computeWalletAddress(
+        Uint8Array.from(newPassKey.publicKey),
+        0
+      );
+      address = computed;
+    } catch (error) {
+      console.error(error);
+      return { status: 400, json: { detail: String(error) } };
+    }
+
     return {
       status: 200,
-      json: { verified: verification.verified, registrationInfo },
+      json: { passkeyID: newPassKey.id, nonce: 0, address },
     };
   }
 );
