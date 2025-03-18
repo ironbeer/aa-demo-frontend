@@ -1,11 +1,12 @@
 import { generateAPIRoute } from "@/app/api/utils";
+import { paymasterAddress, rpID } from "@/envs/server";
 import {
   computeWalletAddress,
   encodeForCreateAccount,
   getEntryPoint,
   getPublicClient,
 } from "@/lib/blockchain";
-import { datastore, paymasterToken, rpID } from "@/lib/server";
+import { datastore } from "@/lib/datastore";
 import {
   GenerateUserOperationHashOptionsRequest,
   GenerateUserOperationHashOptionsResponse,
@@ -48,7 +49,7 @@ export const POST = generateAPIRoute<GenerateUserOperationHashOptionsResponse>(
     if (usePaymaster) {
       userOp.paymasterAndData = encodePacked(
         ["address", "bytes"],
-        [paymasterToken, "0x"]
+        [paymasterAddress, "0x"]
       );
     }
 

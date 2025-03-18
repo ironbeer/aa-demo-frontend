@@ -45,7 +45,7 @@ export type Passkey = {
 /**
  * API呼び出しエラー
  */
-export type APIError = { detail: string };
+export type APIError = { detail: string | object };
 
 /**
  * パスキー登録用Options取得APIのリクエスト型

@@ -7,7 +7,11 @@ export type RequestHandler<T> = (
 
 export const generateAPIRoute = <T>(handler: RequestHandler<T>) => {
   return async (request: NextRequest) => {
-    const { status, json } = await handler(request);
-    return Response.json(json, { status });
+    try {
+      const { status, json } = await handler(request);
+      return Response.json(json, { status });
+    } catch (error) {
+      return Response.json({ detail: String(error) }, { status: 500 });
+    }
   };
 };

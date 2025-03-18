@@ -15,7 +15,7 @@ import {
 import { useState } from "react";
 import { Address, Hex, isAddress, isHex } from "viem";
 
-export type CallFormProps = {
+export type CallEditorProps = {
   sender: Address;
   initCalls: CoinbaseSmartWallet_Call[];
   onSubmit: (calls: CoinbaseSmartWallet_Call[]) => void;
@@ -33,7 +33,10 @@ type FormError = {
   data: string;
 };
 
-export const CallForm: React.FC<CallFormProps> = ({ initCalls, onSubmit }) => {
+export const CallEditor: React.FC<CallEditorProps> = ({
+  initCalls,
+  onSubmit,
+}) => {
   const [calls, setCalls] = useState<Form[]>(
     initCalls.map((x) => ({
       target: x.target,

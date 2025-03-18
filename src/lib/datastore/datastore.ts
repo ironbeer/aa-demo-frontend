@@ -2,11 +2,11 @@ import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
 } from "@simplewebauthn/server";
-import { typedClient } from "@/lib/server/redis";
+import { typedClient } from "@/lib/datastore/redis";
 import { Passkey } from "@/lib/types";
 
-// optionsの有効期限を5分とする
-const optionsExpire = 5 * 60 * 1000;
+// optionsのTTLは3分とする
+const optionsExpire = 60 * 3;
 
 /**
  * Passkeyデータベース

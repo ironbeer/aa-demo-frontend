@@ -1,7 +1,12 @@
-import { CoinbaseSmartWallet_Call } from "@/lib/types";
+import {
+  CoinbaseSmartWallet_Call,
+  ExecuteUserOperationResponse,
+} from "@/lib/types";
 import { Address, isAddressEqual } from "viem";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+
+const maxTransactionHistory = 10;
 
 export type Wallet = {
   passkeyID: string;
@@ -11,14 +16,22 @@ export type Wallet = {
 
 export type Wallets = { [passkeyID: string]: Wallet[] };
 
-export type WalletCalls = { [sender: Address]: CoinbaseSmartWallet_Call[] };
+export type Calls = { [sender: Address]: CoinbaseSmartWallet_Call[] };
+
+export type Transactions = {
+  date: string;
+  sender: Address;
+  tx: ExecuteUserOperationResponse;
+}[];
 
 export type WalletStoreState = {
   wallets: Wallets;
-  calls: WalletCalls;
+  calls: Calls;
+  transactions: Transactions;
   saveWallet: (wallet: Wallet) => void;
   nextNonce: (passkeyID: string) => number;
   replaceCalls: (sender: Address, calls: CoinbaseSmartWallet_Call[]) => void;
+  saveTransaction: (sender: Address, tx: ExecuteUserOperationResponse) => void;
 };
 
 export const useWalletStore = create<WalletStoreState>()(
@@ -26,6 +39,7 @@ export const useWalletStore = create<WalletStoreState>()(
     (set, get) => ({
       wallets: {},
       calls: {},
+      transactions: [],
       saveWallet: (wallet) => {
         const wallets = get().wallets;
         const byKeyID = wallets[wallet.passkeyID] || [];
@@ -42,6 +56,12 @@ export const useWalletStore = create<WalletStoreState>()(
         const calls = get().calls;
         calls[sender] = newCalls;
         set({ calls });
+      },
+      saveTransaction: (sender, tx) => {
+        let txs = get().transactions;
+        const date = new Date().toLocaleString("ja-JP");
+        txs = [{ date, sender, tx }, ...txs].slice(0, maxTransactionHistory);
+        set({ transactions: txs });
       },
     }),
     {

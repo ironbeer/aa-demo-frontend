@@ -1,11 +1,12 @@
-import { NextRequest } from "next/server";
-import { generateRegistrationOptions } from "@simplewebauthn/server";
-import { rpName, rpID, datastore } from "@/lib/server";
+import { generateAPIRoute } from "@/app/api/utils";
+import { rpID, rpName } from "@/envs/server";
+import { datastore } from "@/lib/datastore";
 import {
   GenerateRegistrationOptionsRequest,
   GenerateRegistrationOptionsResponse,
 } from "@/lib/types";
-import { generateAPIRoute } from "@/app/api/utils";
+import { generateRegistrationOptions } from "@simplewebauthn/server";
+import { NextRequest } from "next/server";
 
 export const POST = generateAPIRoute<GenerateRegistrationOptionsResponse>(
   async (request: NextRequest) => {
@@ -28,7 +29,7 @@ export const POST = generateAPIRoute<GenerateRegistrationOptionsResponse>(
         residentKey: "preferred",
         userVerification: "preferred",
         // Optional
-        authenticatorAttachment: "platform",
+        authenticatorAttachment: "cross-platform",
       },
     });
 

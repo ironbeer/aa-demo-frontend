@@ -1,5 +1,8 @@
+import { explorerURL } from "@/envs/public";
 import { Wallet, Wallets } from "@/store";
+import LaunchIcon from "@mui/icons-material/Launch";
 import {
+  IconButton,
   Table,
   TableBody,
   TableCell,
@@ -9,13 +12,9 @@ import {
 } from "@mui/material";
 import React, { ReactNode } from "react";
 
-export type ActionsProps = {
-  wallet: Wallet;
-};
-
 export type WalletTableProps = {
   wallets: Wallets;
-  renderActions: (props: ActionsProps) => ReactNode;
+  renderActions: (props: { wallet: Wallet }) => ReactNode;
 };
 
 export const WalletTable: React.FC<WalletTableProps> = ({
@@ -24,12 +23,11 @@ export const WalletTable: React.FC<WalletTableProps> = ({
 }) => {
   return (
     <TableContainer>
-      <Table>
-        <TableHead>
+      <Table size="small">
+        <TableHead sx={{ bgcolor: "grey.300" }}>
           <TableRow>
-            <TableCell>PasskeyID (nonce)</TableCell>
-            <TableCell>Address</TableCell>
-            {/* <TableCell>Nonce</TableCell> */}
+            <TableCell>Wallet address</TableCell>
+            <TableCell>Assigned passkey (nonce)</TableCell>
             <TableCell></TableCell>
           </TableRow>
         </TableHead>
@@ -38,10 +36,20 @@ export const WalletTable: React.FC<WalletTableProps> = ({
             wallets.map((wallet, i) => (
               <TableRow key={`${passkeyID}-${i}`}>
                 <TableCell>
+                  {wallet.address}
+                  <a
+                    href={`${explorerURL}/address/${wallet.address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <IconButton size="small">
+                      <LaunchIcon fontSize="small" />
+                    </IconButton>
+                  </a>
+                </TableCell>
+                <TableCell>
                   {passkeyID} ({wallet.nonce})
                 </TableCell>
-                <TableCell>{wallet.address}</TableCell>
-                {/* <TableCell>{wallet.nonce}</TableCell> */}
                 <TableCell>{renderActions({ wallet })}</TableCell>
               </TableRow>
             ))

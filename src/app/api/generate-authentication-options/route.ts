@@ -1,7 +1,8 @@
-import { generateAuthenticationOptions } from "@simplewebauthn/server";
-import { rpID, datastore } from "@/lib/server";
-import { GenerateAuthenticationOptionsResponse } from "@/lib/types";
 import { generateAPIRoute } from "@/app/api/utils";
+import { rpID } from "@/envs/server";
+import { datastore } from "@/lib/datastore";
+import { GenerateAuthenticationOptionsResponse } from "@/lib/types";
+import { generateAuthenticationOptions } from "@simplewebauthn/server";
 
 export const GET = generateAPIRoute<GenerateAuthenticationOptionsResponse>(
   async () => {

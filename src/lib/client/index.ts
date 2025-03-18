@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ComputeWalletAddressRequest,
   ComputeWalletAddressResponse,
@@ -18,13 +20,6 @@ import {
   startRegistration as startRegistrationBrowser,
 } from "@simplewebauthn/browser";
 
-// API呼び出しエラー
-class APIError extends Error {
-  constructor(public detail: string) {
-    super(detail);
-  }
-}
-
 // APIルートのURL一覧
 const endpoints = {
   generateRegistrationOptions: "/api/generate-registration-options",
@@ -35,33 +30,45 @@ const endpoints = {
   executeUserOperation: "/api/execute-user-operation",
 } as const;
 
-// API呼び出し結果からJSONを取り出す、JSONで無い場合は例外を投げる
-const getJsonRseponse = async <T>(res: Response): Promise<APIError | T> => {
-  if (res.headers.get("content-type") !== "application/json") {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+const wrapfetch = async <T>(url: string, options?: RequestInit): Promise<T> => {
+  const response = await fetch(url, options);
+
+  // ステータスコードが2xx以外である or レスポンスがJSONではない
+  const status = response.status;
+  const isJson = response.headers.get("content-type") === "application/json";
+
+  if (status < 200 || status >= 300 || !isJson) {
+    let body: string;
+    if (isJson) {
+      const json: { detail?: string | object } = await response.json();
+      if (typeof json.detail === "object") {
+        body = JSON.stringify(json.detail);
+      } else {
+        body = json.detail || JSON.stringify(json);
+      }
+    } else {
+      body = await response.text();
+    }
+    console.log({ isJson, body });
+    throw new Error(`API error: url=${url} status=${status} body=${body}`);
   }
-  // ステータスコードが2xx以外の場合はAPIエラーとして扱う
-  const json = await res.json();
-  if (!res.ok) {
-    return new APIError(json.detail);
-  }
-  return json;
+
+  return await response.json();
 };
 
 // APIからパスキー登録用のOptionsを取得する
-const generateRegistrationOptions = async (
+export const generateRegistrationOptions = (
   params: GenerateRegistrationOptionsRequest
-) => {
-  const res = await fetch(endpoints.generateRegistrationOptions, {
+): Promise<GenerateRegistrationOptionsResponse> => {
+  return wrapfetch(endpoints.generateRegistrationOptions, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   });
-  return await getJsonRseponse<GenerateRegistrationOptionsResponse>(res);
 };
 
 // APIから取得したパスキー登録用Optionsを使用してデバイス認証を行う
-const startRegistration = async (
+export const startRegistration = async (
   optionsJSON: GenerateRegistrationOptionsResponse
 ): Promise<RegistrationResponseJSON> => {
   try {
@@ -79,72 +86,58 @@ const startRegistration = async (
 };
 
 // パスキー登録のデバイス認証の結果をAPIに送信
-const verifyRegistration = async (resp: RegistrationResponseJSON) => {
-  const res = await fetch(endpoints.verifyRegistration, {
+export const verifyRegistration = (
+  resp: RegistrationResponseJSON
+): Promise<VerifiedRegistrationResponse> => {
+  return wrapfetch(endpoints.verifyRegistration, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(resp),
   });
-  return await getJsonRseponse<VerifiedRegistrationResponse>(res);
 };
 
 // APIからパスキー認証用のOptionsを取得する
-const generateAuthenticationOptions = async () => {
-  const res = await fetch(endpoints.generateAuthenticationOptions);
-  return await getJsonRseponse<GenerateAuthenticationOptionsResponse>(res);
-};
+export const generateAuthenticationOptions =
+  (): Promise<GenerateAuthenticationOptionsResponse> => {
+    return wrapfetch(endpoints.generateAuthenticationOptions);
+  };
 
 // APIから取得したパスキー認証用Optionsを使用してデバイス認証を行う
-const startAuthentication = async (
+export const startAuthentication = (
   optionsJSON: GenerateAuthenticationOptionsResponse
 ): Promise<AuthenticationResponseJSON> => {
-  return await startAuthenticationBrowser({ optionsJSON });
+  return startAuthenticationBrowser({ optionsJSON });
 };
 
 // デバイス認証の結果を利用してウォレットアドレスを取得
-const computeWalletAddress = async (resp: ComputeWalletAddressRequest) => {
-  const res = await fetch(endpoints.computeWalletAddress, {
+export const computeWalletAddress = (
+  resp: ComputeWalletAddressRequest
+): Promise<ComputeWalletAddressResponse> => {
+  return wrapfetch(endpoints.computeWalletAddress, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(resp),
   });
-  return await getJsonRseponse<ComputeWalletAddressResponse>(res);
 };
 
 // APIからUserOperation署名用Optionsを取得する
-const generateUserOpHashOptions = async (
+export const generateUserOpHashOptions = (
   params: GenerateUserOperationHashOptionsRequest
-) => {
-  const res = await fetch(endpoints.generateUserOpHashOptions, {
+): Promise<GenerateUserOperationHashOptionsResponse> => {
+  return wrapfetch(endpoints.generateUserOpHashOptions, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   });
-  return await getJsonRseponse<GenerateUserOperationHashOptionsResponse>(res);
 };
 
 // UserOperation実行APIを呼び出す
-const executeUserOperation = async (params: ExecuteUserOperationRequest) => {
-  const res = await fetch(endpoints.executeUserOperation, {
+export const executeUserOperation = (
+  params: ExecuteUserOperationRequest
+): Promise<ExecuteUserOperationResponse> => {
+  return wrapfetch(endpoints.executeUserOperation, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   });
-  return await getJsonRseponse<ExecuteUserOperationResponse>(res);
 };
-
-const registration = {
-  generateRegistrationOptions,
-  startRegistration,
-  verifyRegistration,
-};
-
-const authentication = {
-  generateAuthenticationOptions,
-  startAuthentication,
-  computeWalletAddress,
-  generateUserOpHashOptions,
-  executeUserOperation,
-};
-
-export { APIError, authentication, endpoints, registration };

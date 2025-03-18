@@ -2,7 +2,7 @@ import {
   coinbaseSmartWalletFactoryAddress,
   entryPointAddress,
   rpcURL,
-} from "@/lib/constants";
+} from "@/envs/public";
 import {
   AuthenticatorAssertionResponseJSON,
   Base64URLString,
@@ -34,9 +34,9 @@ import {
   CoinbaseSmartWallet_SignatureWrapper,
   CoinbaseSmartWallet_WebAuthnAuth,
 } from "../types";
-import entryPointABI from "./abis/IEntryPoint.json";
 import CoinbaseSmartWalletABI from "./abis/CoinbaseSmartWallet.json";
 import coinbaseSmartWalletFactoryABI from "./abis/CoinbaseSmartWalletFactory.json";
+import entryPointABI from "./abis/IEntryPoint.json";
 import tokenPaymasterABI from "./abis/TokenPaymaster.json";
 
 type GetContractParams = {
@@ -54,10 +54,22 @@ type GetWritableContractParams = {
   abi?: Abi;
 };
 
+// ブラウザ向けのシングルトンRPCクライアント
+let browserClient: PublicClient;
+
 /**
  * RPCクライアント取得
  */
 export const getPublicClient = (url = rpcURL): PublicClient => {
+  // ブラウザにはシングルトンを返す
+  if (typeof window !== "undefined") {
+    if (!browserClient) {
+      browserClient = createPublicClient({ transport: http(url) });
+    }
+    return browserClient;
+  }
+
+  // サーバーには都度返す
   return createPublicClient({ transport: http(url) });
 };
 
@@ -266,8 +278,8 @@ export const getUserOpSignature = (
 };
 
 export {
-  entryPointABI,
-  tokenPaymasterABI,
   CoinbaseSmartWalletABI,
   coinbaseSmartWalletFactoryABI,
+  entryPointABI,
+  tokenPaymasterABI,
 };

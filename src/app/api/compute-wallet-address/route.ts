@@ -1,6 +1,7 @@
 import { generateAPIRoute } from "@/app/api/utils";
+import { rpID, rpOrigin } from "@/envs/server";
 import { computeWalletAddress } from "@/lib/blockchain";
-import { datastore, rpID, rpOrigin } from "@/lib/server";
+import { datastore } from "@/lib/datastore";
 import {
   ComputeWalletAddressRequest,
   ComputeWalletAddressResponse,

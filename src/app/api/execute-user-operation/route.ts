@@ -1,4 +1,5 @@
 import { generateAPIRoute } from "@/app/api/utils";
+import { bundlerPrivateKey, rpID, rpOrigin } from "@/envs/server";
 import {
   getPublicClient,
   getUserOpSignature,
@@ -7,7 +8,7 @@ import {
   isHexEqual,
   uint8ArrToHex,
 } from "@/lib/blockchain";
-import { bundlerAccount, datastore, rpID, rpOrigin } from "@/lib/server";
+import { datastore } from "@/lib/datastore";
 import {
   ExecuteUserOperationRequest,
   ExecuteUserOperationResponse,
@@ -23,6 +24,7 @@ import {
 import { NextRequest } from "next/server";
 import {
   Address,
+  ContractFunctionExecutionError,
   Hex,
   TransactionReceipt,
   isAddressEqual,
@@ -88,12 +90,12 @@ export const POST = generateAPIRoute<ExecuteUserOperationResponse>(
     try {
       const client = {
         public: getPublicClient(),
-        wallet: getWritableClient({ privateKey: bundlerAccount.privateKey }),
+        wallet: getWritableClient({ privateKey: bundlerPrivateKey }),
       };
       const entryPoint = getWritableEntryPoint({ client });
       const hash = await entryPoint.write.handleOps([
         [userOp],
-        bundlerAccount.address, // beneficiary
+        client.wallet.account!.address, // beneficiary
       ]);
 
       receipt = await client.public.waitForTransactionReceipt({
@@ -122,6 +124,9 @@ export const POST = generateAPIRoute<ExecuteUserOperationResponse>(
       });
     } catch (error) {
       console.error(error);
+      if (error instanceof ContractFunctionExecutionError) {
+        return { status: 400, json: { detail: error.message } };
+      }
       return { status: 500, json: { detail: String(error) } };
     }
 
