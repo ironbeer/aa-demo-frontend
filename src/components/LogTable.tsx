@@ -19,9 +19,7 @@ export const LogTable: React.FC<LogTableProps> = ({ logs }) => {
       <Table size="small">
         <TableHead sx={{ bgcolor: "grey.300" }}>
           <TableRow>
-            <TableCell>Date</TableCell>
-            <TableCell>Level</TableCell>
-            <TableCell>Tag</TableCell>
+            <TableCell>Date / Tag</TableCell>
             <TableCell>Message</TableCell>
           </TableRow>
         </TableHead>
@@ -29,13 +27,14 @@ export const LogTable: React.FC<LogTableProps> = ({ logs }) => {
           {logs.map((log, index) => (
             <TableRow
               key={index}
-              sx={{ color: log.level === "error" ? "error.main" : "" }}
+              sx={{
+                verticalAlign: "top",
+                color: log.level === "error" ? "error.main" : "",
+              }}
             >
               <TableCell sx={{ color: "inherit", textWrap: "nowrap" }}>
-                {log.date}
+                {log.date} <br /> {log.tag}
               </TableCell>
-              <TableCell sx={{ color: "inherit" }}>{log.level}</TableCell>
-              <TableCell sx={{ color: "inherit" }}>{log.tag}</TableCell>
               <TableCell
                 sx={{
                   color: "inherit",
