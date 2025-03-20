@@ -56,10 +56,7 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
   const initCalls = useRef(
     useWalletStore.getState().calls[wallet.address] || []
   );
-
-  const [calls, setCalls] = useState<CoinbaseSmartWallet_Call[]>(
-    initCalls.current
-  );
+  const [calls, setCalls] = useState(initCalls.current);
   const [isValid, setIsValid] = useState(false);
 
   // CallEditor内の変更をStorageに保存
@@ -109,7 +106,7 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
       maxFeePerGas: basefee,
       maxPriorityFeePerGas: basefee,
       // TODO: ガスリミットの計算方法が分からないので適当な値を入れている
-      callGasLimit: 21_000 * calls.length,
+      callGasLimit: calls.reduce((acc, call) => acc + call.gasLimit, 0),
       verificationGasLimit: 600_000 * calls.length + verificationGasLimitExtra,
       preVerificationGas: 600_000 * calls.length,
       // 以下はAPIサーバ側で追加される

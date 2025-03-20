@@ -170,7 +170,7 @@ export const encodeCallsForExecuteBatch = (
   return encodeFunctionData({
     abi: coinbaseSmartWalletABI,
     functionName: "executeBatch",
-    args: [calls],
+    args: [calls.map(({ target, value, data }) => ({ target, value, data }))],
   });
 };
 

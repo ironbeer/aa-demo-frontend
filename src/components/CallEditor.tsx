@@ -26,6 +26,7 @@ type Errors = {
   target?: string;
   value?: string;
   data?: string;
+  gasLimit?: string;
 };
 
 type Row = {
@@ -33,10 +34,11 @@ type Row = {
   errors?: Errors;
 };
 
-const defaultValues = {
+const defaultValues: CoinbaseSmartWallet_Call = {
   target: "" as Address,
   value: "0",
   data: "0x",
+  gasLimit: 21_000,
 } as const;
 
 export const CallEditor: React.FC<CallEditorProps> = ({
@@ -68,10 +70,13 @@ export const CallEditor: React.FC<CallEditorProps> = ({
       errors.push(["target", "Invalid address"]);
     }
     if (!/^[0-9]+$/g.test(values.value)) {
-      errors.push(["value", "Invalid number"]);
+      errors.push(["value", "Invalid value"]);
     }
     if (!isHex(values.data)) {
       errors.push(["data", "Invalid data"]);
+    }
+    if (values.gasLimit <= 0) {
+      errors.push(["gasLimit", "Invalid gas limit"]);
     }
     return errors.length ? Object.fromEntries(errors) : undefined;
   };
@@ -92,6 +97,7 @@ export const CallEditor: React.FC<CallEditorProps> = ({
             <TableCell>To</TableCell>
             <TableCell>Value</TableCell>
             <TableCell>Data</TableCell>
+            <TableCell>GasLimit</TableCell>
             <TableCell></TableCell>
           </TableRow>
         </TableHead>
@@ -115,7 +121,7 @@ export const CallEditor: React.FC<CallEditorProps> = ({
                   placeholder="0x"
                 />
               </TableCell>
-              <TableCell sx={{ border: "none", width: 200 }}>
+              <TableCell sx={{ border: "none", width: 150 }}>
                 <TextField
                   value={values.value}
                   error={!!errors?.value}
@@ -147,6 +153,23 @@ export const CallEditor: React.FC<CallEditorProps> = ({
                   fullWidth
                   size="small"
                   placeholder="0x"
+                />
+              </TableCell>
+              <TableCell sx={{ border: "none", width: 150 }}>
+                <TextField
+                  value={values.gasLimit}
+                  error={!!errors?.gasLimit}
+                  helperText={errors?.gasLimit}
+                  onChange={(e) =>
+                    updateValues(i, {
+                      ...values,
+                      gasLimit: Number(e.target.value),
+                    })
+                  }
+                  required
+                  fullWidth
+                  size="small"
+                  type="number"
                 />
               </TableCell>
               <TableCell sx={{ border: "none", pr: 0, pl: 0 }}>

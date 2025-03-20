@@ -125,6 +125,7 @@ export type CoinbaseSmartWallet_Call = {
   target: Address;
   value: string;
   data: Hex;
+  gasLimit: number; // 内部計算用なのでEntryPointには送らない
 };
 
 /**
