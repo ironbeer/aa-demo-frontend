@@ -200,7 +200,7 @@ export default function Home() {
           {/* トランザクションテーブル */}
           <Grid2 container spacing={2} size={12}>
             <Typography variant="h5" color="text.secondary">
-              Sent Transactions
+              Transactions
             </Typography>
             <TransactionTable transactions={sentTransactions} />
           </Grid2>

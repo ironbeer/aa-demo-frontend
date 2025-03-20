@@ -158,7 +158,7 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
             <CardActionArea onClick={() => executeOnLoading(false)}>
               <CardContent>
                 <Typography variant="h5" component="div">
-                  Self-Paid fees
+                  Send with self-paid fees
                 </Typography>
                 <Typography
                   variant="body1"
@@ -177,7 +177,7 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
             <CardActionArea onClick={() => executeOnLoading(true)}>
               <CardContent>
                 <Typography variant="h5" component="div">
-                  Sponsored fees
+                  Send with sponsored fees
                 </Typography>
                 <Typography
                   variant="body1"
