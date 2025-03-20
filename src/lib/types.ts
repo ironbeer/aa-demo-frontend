@@ -198,3 +198,9 @@ export type ChainConfig = {
   rpc: string;
   explorer: string;
 };
+
+/**
+ * コンポーネント間のローディング通知
+ */
+export type Done = () => void;
+export type LoadingHandler = () => Done;

@@ -50,7 +50,6 @@ const wrapfetch = async <T>(url: string, options?: RequestInit): Promise<T> => {
     } else {
       body = await response.text();
     }
-    console.log({ isJson, body });
     throw new Error(`API error: url=${url} status=${status} body=${body}`);
   }
 

@@ -109,25 +109,34 @@ export const POST = generateAPIRoute<ExecuteUserOperationResponse>(
         confirmations: 1,
       });
 
-      // Receiptのステータスが成功になっていても内部callは失敗している可能性があるのでイベントログを確認
+      // Receiptが成功でも内部callが失敗している可能性があるのでイベントログを確認
       success = parseEventLogs({
         abi: entryPoint.abi,
         logs: receipt.logs,
-      }).some((x) => {
-        if (x.eventName !== "UserOperationEvent") {
-          return false;
-        }
-        const args = x.args as {
-          sender: Address;
-          userOpHash: Hex;
-          success: boolean;
-        };
-        return (
-          isAddressEqual(args.sender, userOp.sender) &&
-          isHexEqual(args.userOpHash, userOpHash) &&
-          args.success
-        );
-      });
+      })
+        .filter((x) => isAddressEqual(x.address, entryPoint.address))
+        .every((x) => {
+          console.log(x);
+
+          // これがある場合は失敗
+          if (x.eventName === "UserOperationRevertReason") {
+            return false;
+          }
+          // 無関係なイベントなので無視
+          if (x.eventName !== "UserOperationEvent") {
+            return true;
+          }
+          const args = x.args as {
+            sender: Address;
+            userOpHash: Hex;
+            success: boolean;
+          };
+          return (
+            isAddressEqual(args.sender, userOp.sender) &&
+            isHexEqual(args.userOpHash, userOpHash) &&
+            args.success
+          );
+        });
     } catch (error) {
       console.error(error);
       if (error instanceof ContractFunctionExecutionError) {

@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CallEditor,
   ChainSelect,
   CreateWalletDialog,
   LogTable,
@@ -9,17 +8,15 @@ import {
   TransactionTable,
   WalletTable,
 } from "@/components";
-import {
-  ChainConfig,
-  CoinbaseSmartWallet_Call,
-  ExecuteUserOperationResponse,
-} from "@/lib/types";
+import { ChainConfig, ExecuteUserOperationResponse } from "@/lib/types";
 import { Wallet, useChainStore, useLoggerStore, useWalletStore } from "@/store";
 import theme from "@/styles/theme";
 import {
   Alert,
+  Backdrop,
   Box,
   Button,
+  CircularProgress,
   Grid2,
   Modal,
   Snackbar,
@@ -27,21 +24,17 @@ import {
   Typography,
 } from "@mui/material";
 import { useState } from "react";
-import { Address } from "viem";
 
 export default function Home() {
   const { logs } = useLoggerStore();
   const { selected: selectedChain, onSelect: onSelectChain } = useChainStore();
-
   const {
     wallets,
-    calls: walletCalls,
     transactions: sentTransactions,
     saveWallet,
     replaceCalls,
     saveTransaction,
   } = useWalletStore();
-  const filterCalls = (sender: Address) => walletCalls[sender] ?? [];
 
   // チェーン選択ボタンのアンカー
   const [chainSelectAnchorEl, setChainSelectAnchorEl] =
@@ -49,70 +42,67 @@ export default function Home() {
 
   // ウォレット作成ダイアログの表示フラグ
   const [showWalletDialog, setShowWalletDialog] = useState(false);
-
-  // 現在開いているCallFormと関連付けられているウォレット
-  const [activeCallFormWallet, setActiveCallFormWallet] =
-    useState<null | Wallet>(null);
+  const closeWalletDialog = () => setShowWalletDialog(false);
 
   // 現在開いているトランザクション送信モーダルと関連付けられているウォレット
-  const [activeSendTransactionWallet, setActiveSendTransactionWallet] =
-    useState<null | Wallet>(null);
+  const [transactingWallet, setTransactingWallet] = useState<null | Wallet>(
+    null
+  );
+  const closeTransactionDialog = () => setTransactingWallet(null);
 
-  // トランザクション送信結果の通知バーの表示フラグ
-  const [txAlert, setTxAlert] = useState<{
+  // ローディングスピナー
+  const [showLoading, setLoading] = useState(false);
+  const onLoading = () => {
+    setLoading(true);
+    return () => setLoading(false);
+  };
+
+  // 通知バー
+  const [alert, setAlert] = useState<{
     show: boolean;
-    mode?: "success" | "reverted" | "error";
+    severity?: "success" | "error";
+    text?: string;
   }>({ show: false });
-  const closeTxAlert = () =>
-    setTimeout(() => setTxAlert((prev) => ({ ...prev, show: false })), 3000);
+  const showAlert = (severity: "success" | "error", text: string) => {
+    setAlert({ show: true, severity, text });
+    setTimeout(() => setAlert((prev) => ({ ...prev, show: false })), 3000);
+  };
 
-  // ウォレット作成フォームの送信処理
-  const onSubmitCreateWalletForm = (wallet: Wallet) => {
+  // ウォレット作成成功コールバック
+  const onWalletCreated = (wallet: Wallet) => {
     saveWallet(wallet);
-    onCloseCreateWalletForm();
+    closeWalletDialog();
+    showAlert("success", "Wallet created");
   };
 
-  // ウォレット作成フォームのクローズ処理
-  const onCloseCreateWalletForm = () => setShowWalletDialog(false);
-
-  // CallFormの送信処理
-  const onSubmitCallForm = (
-    wallet: Wallet,
-    calls: CoinbaseSmartWallet_Call[]
-  ) => {
-    replaceCalls(wallet.address, calls);
-    onCloseCallForm();
+  // ウォレット作成エラーコールバック
+  const onErrorCreateWallet = () => {
+    closeWalletDialog();
+    showAlert("error", "Wallet creation failed");
   };
 
-  // CallFormのクローズ処理
-  const onCloseCallForm = () => setActiveCallFormWallet(null);
-
-  // トランザクション送信フォームのクローズ処理
-  const onCloseSendTransaction = () => setActiveSendTransactionWallet(null);
-
-  // トランザクション送信後のコールバック
+  // トランザクション送信成功コールバック
   const onSentTransaction = (
     chain: ChainConfig,
     wallet: Wallet,
     response: ExecuteUserOperationResponse
   ) => {
     saveTransaction(chain.id, wallet.address, response);
-
-    // TXが成功した場合はCallsをクリア
     if (response.success) {
-      replaceCalls(activeSendTransactionWallet!.address, []);
+      replaceCalls(transactingWallet!.address, []);
     }
 
-    onCloseSendTransaction();
-    setTxAlert({ show: true, mode: response.success ? "success" : "reverted" });
-    closeTxAlert();
+    closeTransactionDialog();
+    showAlert(
+      response.success ? "success" : "error",
+      response.success ? "Transaction succeeded" : "Transaction reverted"
+    );
   };
 
-  // トランザクション送信エラー時のコールバック
+  // トランザクション送信エラーコールバック
   const onErrorSendTransaction = () => {
-    onCloseSendTransaction();
-    setTxAlert({ show: true, mode: "error" });
-    closeTxAlert();
+    closeTransactionDialog();
+    showAlert("error", "Transaction failed");
   };
 
   return (
@@ -121,7 +111,14 @@ export default function Home() {
         container
         justifyContent="center"
         spacing={4}
-        sx={{ width: "95%", mt: 4, mr: "auto", mb: 4, ml: "auto" }}
+        sx={{
+          width: "95%",
+          maxWidth: 1500,
+          mt: 4,
+          mr: "auto",
+          mb: 4,
+          ml: "auto",
+        }}
       >
         <Grid2
           container
@@ -153,14 +150,13 @@ export default function Home() {
             onClick={() => setShowWalletDialog(true)}
             size="large"
             variant="outlined"
-            color="secondary"
             sx={{ textTransform: "none", borderRadius: 6 }}
           >
             Create a smart wallet
           </Button>
         </Grid2>
 
-        <Grid2 container component="main" size={12} rowSpacing={10}>
+        <Grid2 container component="main" size={12} rowSpacing={6}>
           {/* ウォレットテーブル */}
           <Grid2 container spacing={2} size={12}>
             <Typography variant="h5" color="text.secondary">
@@ -175,18 +171,9 @@ export default function Home() {
                   justifyContent={"flex-end"}
                   sx={{ mr: 0 }}
                 >
-                  {/* CallFormモーダルを開くボタン */}
+                  {/* トランザクション送信ボタン */}
                   <Button
-                    onClick={() => setActiveCallFormWallet(wallet)}
-                    variant="outlined"
-                    sx={{ textTransform: "none" }}
-                  >
-                    Edit Calls ({filterCalls(wallet.address).length})
-                  </Button>
-                  {/* トランザクション送信モーダル */}
-                  <Button
-                    onClick={() => setActiveSendTransactionWallet(wallet)}
-                    disabled={filterCalls(wallet.address).length === 0}
+                    onClick={() => setTransactingWallet(wallet)}
                     variant="outlined"
                     sx={{ textTransform: "none" }}
                   >
@@ -216,7 +203,7 @@ export default function Home() {
       </Grid2>
 
       {/* ウォレット作成モーダル */}
-      <Modal open={showWalletDialog} onClose={onCloseCreateWalletForm}>
+      <Modal open={showWalletDialog} onClose={closeWalletDialog}>
         <Box
           sx={{
             position: "absolute",
@@ -232,84 +219,59 @@ export default function Home() {
         >
           <CreateWalletDialog
             chain={selectedChain}
-            onCreate={onSubmitCreateWalletForm}
+            onLoading={onLoading}
+            onError={onErrorCreateWallet}
+            onCreate={onWalletCreated}
           />
         </Box>
       </Modal>
 
-      {/* Call編集モーダル */}
-      <Modal open={!!activeCallFormWallet} onClose={onCloseCallForm}>
-        <Box
-          sx={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: "70%",
-            bgcolor: "background.paper",
-            boxShadow: 24,
-            p: 4,
-            borderRadius: 2,
-          }}
-        >
-          {activeCallFormWallet && (
-            <CallEditor
-              sender={activeCallFormWallet.address}
-              initCalls={filterCalls(activeCallFormWallet.address)}
-              onSubmit={(calls) =>
-                onSubmitCallForm(activeCallFormWallet!, calls)
-              }
-            />
-          )}
-        </Box>
-      </Modal>
-
       {/* トランザクション送信モーダル */}
-      <Modal
-        open={!!activeSendTransactionWallet}
-        onClose={onCloseSendTransaction}
-      >
+      <Modal open={!!transactingWallet} onClose={closeTransactionDialog}>
         <Box
           sx={{
             position: "absolute",
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: 500,
+            width: "95%",
+            maxWidth: 1200,
             bgcolor: "background.paper",
             boxShadow: 24,
             p: 4,
             borderRadius: 2,
           }}
         >
-          {activeSendTransactionWallet && (
+          {transactingWallet && (
             <SendTransactionDialog
               chain={selectedChain}
-              wallet={activeSendTransactionWallet}
-              calls={filterCalls(activeSendTransactionWallet.address)}
-              onSent={onSentTransaction}
+              wallet={transactingWallet}
+              onLoading={onLoading}
               onError={onErrorSendTransaction}
+              onSent={onSentTransaction}
             />
           )}
         </Box>
       </Modal>
 
-      {/* トランザクション送信結果の通知バー */}
+      {/* 通知バー */}
       <Snackbar
-        open={txAlert.show}
+        open={alert.show}
         anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
-        <Alert
-          severity={txAlert.mode === "success" ? "success" : "error"}
-          variant="filled"
-        >
-          {txAlert.mode === "success"
-            ? "Transaction succeeded"
-            : txAlert.mode === "reverted"
-            ? "Transaction reverted"
-            : "Transaction failed"}
+        <Alert severity={alert.severity} variant="filled">
+          {" "}
+          {alert.text}{" "}
         </Alert>
       </Snackbar>
+
+      {/* ローディングスピナー */}
+      <Backdrop
+        open={showLoading}
+        sx={(theme) => ({ color: "#fff", zIndex: theme.zIndex.modal + 1 })}
+      >
+        <CircularProgress color="inherit" />
+      </Backdrop>
     </ThemeProvider>
   );
 }

@@ -6,7 +6,7 @@ import {
   startRegistration,
   verifyRegistration,
 } from "@/lib/client";
-import { ChainConfig } from "@/lib/types";
+import { ChainConfig, LoadingHandler } from "@/lib/types";
 import { Wallet, useLoggerStore, useWalletStore } from "@/store";
 import {
   Box,
@@ -19,11 +19,15 @@ import {
 
 export type CreateWalletDialogProps = {
   chain: ChainConfig;
+  onLoading: LoadingHandler;
+  onError: () => void;
   onCreate: (wallet: Wallet) => void;
 };
 
 export const CreateWalletDialog: React.FC<CreateWalletDialogProps> = ({
   chain,
+  onLoading,
+  onError,
   onCreate,
 }) => {
   const { getLogger } = useLoggerStore();
@@ -91,12 +95,24 @@ export const CreateWalletDialog: React.FC<CreateWalletDialogProps> = ({
     onCreate({ ...computeRes, nonce });
   };
 
+  const onClick = (fn: () => Promise<void>) => async () => {
+    const done = onLoading();
+    try {
+      await fn();
+    } catch (error) {
+      onError();
+      throw error;
+    } finally {
+      done();
+    }
+  };
+
   return (
     <Box>
       <Grid2 spacing={6} container flexDirection="column">
         {/* 新しいパスキーを使用する */}
         <Card>
-          <CardActionArea onClick={useNewPasskey}>
+          <CardActionArea onClick={onClick(useNewPasskey)}>
             <CardContent>
               <Typography variant="h5" component="div">
                 Use new passkey
@@ -110,7 +126,7 @@ export const CreateWalletDialog: React.FC<CreateWalletDialogProps> = ({
 
         {/* デバイスに登録済みのパスキーを利用する */}
         <Card>
-          <CardActionArea onClick={useRegisteredPasskey}>
+          <CardActionArea onClick={onClick(useRegisteredPasskey)}>
             <CardContent>
               <Typography variant="h5" component="div">
                 Use a registered passkey
