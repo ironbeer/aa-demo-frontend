@@ -1,4 +1,4 @@
-import { bundlerURL, paymasterURL } from "@/envs/public";
+import { bundlerAddress, paymasterContract } from "@/envs/public";
 import {
   encodeCallsForExecuteBatch,
   getEntryPoint,
@@ -10,11 +10,12 @@ import {
   startAuthentication,
 } from "@/lib/client";
 import {
+  ChainConfig,
   CoinbaseSmartWallet_Call,
   EntryPoint_UserOperation,
   ExecuteUserOperationResponse,
 } from "@/lib/types";
-import { Wallet, useLoggerStore } from "@/store";
+import { Wallet, useChainStore, useLoggerStore } from "@/store";
 import {
   Backdrop,
   Box,
@@ -28,22 +29,28 @@ import {
 import { useState } from "react";
 
 export type SendTransactionDialogProps = {
+  chain: ChainConfig;
   wallet: Wallet;
   calls: CoinbaseSmartWallet_Call[];
   // トランザクション送信後のコールバック(レシートステータスが失敗でも呼ばれる)
-  onSent: (wallet: Wallet, response: ExecuteUserOperationResponse) => void;
+  onSent: (
+    chain: ChainConfig,
+    wallet: Wallet,
+    response: ExecuteUserOperationResponse
+  ) => void;
   onError: () => void;
 };
 
 export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
+  chain,
   wallet,
   calls,
   onSent,
   onError,
 }) => {
+  const { getExplorerLink } = useChainStore();
   const { getLogger } = useLoggerStore();
   const logger = getLogger("SendTransaction");
-
   const [onLoading, setOnLoading] = useState(false);
 
   const executeOnLoading = async (usePaymaster: boolean) => {
@@ -59,10 +66,10 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
   };
 
   const execute = async (usePaymaster: boolean) => {
-    const rpc = getPublicClient();
-    const entryPoint = getEntryPoint({ rpc });
+    const client = getPublicClient(chain.rpc);
 
     // ナンス値はEntryPoint.getNonce(address sender, uint192 key)で取得する
+    const entryPoint = getEntryPoint({ client });
     const nonceKey = Math.round(Math.random() * 1e9);
     const nonce = await logger.calllog(
       "entryPoint.getNonce",
@@ -74,12 +81,12 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
     }
 
     // basefeeを取得
-    const block = await getPublicClient().getBlock();
+    const block = await client.getBlock();
     const basefee = Number(block.baseFeePerGas!);
 
     // 初回TX時はウォレットコントラクトのデプロイ処理が入るのでガスが多めに必要
     let verificationGasLimitExtra = 0;
-    const walletCode = await rpc.getCode({ address: wallet.address });
+    const walletCode = await client.getCode({ address: wallet.address });
     if (!walletCode || walletCode.length === 0) {
       verificationGasLimitExtra = 200_000;
     }
@@ -102,7 +109,6 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
     };
 
     // APIサーバに認証用OptionsJSONの生成とinitCodeの追加を依頼
-
     const ophashRes = await logger.calllog(
       "generateUserOpHashOptions",
       generateUserOpHashOptions,
@@ -110,6 +116,7 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
         userOp,
         usePaymaster,
         passkeyID: wallet.passkeyID,
+        chainID: chain.id,
         walletNonce: wallet.nonce,
       }
     );
@@ -128,10 +135,10 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
     const executeRes = await logger.calllog(
       "executeUserOperation",
       executeUserOperation,
-      { userOp, response: authRes }
+      { userOp, response: authRes, chainID: chain.id }
     );
 
-    onSent(wallet, executeRes);
+    onSent(chain, wallet, executeRes);
   };
 
   return (
@@ -189,13 +196,17 @@ export const SendTransactionDialog: React.FC<SendTransactionDialogProps> = ({
             <Typography variant="body1">Explorer links:</Typography>
             <Box component="ul" sx={{ ml: 1 }}>
               <Typography component="li" variant="body2">
-                <a href={bundlerURL} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={getExplorerLink(bundlerAddress, chain.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   - Bundler account
                 </a>
               </Typography>
               <Typography component="li" variant="body2">
                 <a
-                  href={paymasterURL}
+                  href={getExplorerLink(paymasterContract, chain.id)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

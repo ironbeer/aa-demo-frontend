@@ -1,4 +1,5 @@
 import {
+  ChainID,
   CoinbaseSmartWallet_Call,
   ExecuteUserOperationResponse,
 } from "@/lib/types";
@@ -20,6 +21,7 @@ export type Calls = { [sender: Address]: CoinbaseSmartWallet_Call[] };
 
 export type Transactions = {
   date: string;
+  chainID: ChainID;
   sender: Address;
   tx: ExecuteUserOperationResponse;
 }[];
@@ -31,7 +33,11 @@ export type WalletStoreState = {
   saveWallet: (wallet: Wallet) => void;
   nextNonce: (passkeyID: string) => number;
   replaceCalls: (sender: Address, calls: CoinbaseSmartWallet_Call[]) => void;
-  saveTransaction: (sender: Address, tx: ExecuteUserOperationResponse) => void;
+  saveTransaction: (
+    chain: ChainID,
+    sender: Address,
+    tx: ExecuteUserOperationResponse
+  ) => void;
 };
 
 export const useWalletStore = create<WalletStoreState>()(
@@ -57,11 +63,12 @@ export const useWalletStore = create<WalletStoreState>()(
         calls[sender] = newCalls;
         set({ calls });
       },
-      saveTransaction: (sender, tx) => {
-        let txs = get().transactions;
-        const date = new Date().toLocaleString("ja-JP");
-        txs = [{ date, sender, tx }, ...txs].slice(0, maxTransactionHistory);
-        set({ transactions: txs });
+      saveTransaction: (chainID, sender, tx) => {
+        const transactions = [
+          { date: new Date().toLocaleString("ja-JP"), chainID, sender, tx },
+          ...get().transactions,
+        ].slice(0, maxTransactionHistory);
+        set({ transactions });
       },
     }),
     {

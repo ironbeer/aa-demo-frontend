@@ -2,6 +2,7 @@
  * NEXT_PUBLICで始まる秘匿情報を含まない環境変数
  */
 
+import { ChainConfig, ChainID } from "@/lib/types";
 import type { Address } from "viem";
 
 // Human-readable title for your website
@@ -17,10 +18,6 @@ export const rpID = process.env.NEXT_PUBLIC_WEBAUTHN_RP_ID || "localhost";
 export const rpOrigin =
   process.env.NEXT_PUBLIC_WEBAUTHN_ORIGIN || "http://localhost:3000";
 
-// ブロックチェーンのRPCエンドポイント
-export const rpcURL =
-  process.env.NEXT_PUBLIC_RPC_ENDPOINT || "http://localhost:8545";
-
 // EntryPointコントラクトのアドレス
 export const entryPointAddress = process.env
   .NEXT_PUBLIC_AA_ENTRY_POINT as Address;
@@ -30,17 +27,41 @@ export const coinbaseSmartWalletFactoryAddress = process.env
   .NEXT_PUBLIC_COINBASE_SMART_WALLET_FACTORY as Address;
 
 // Paymasterトークンアドレス
-export const paymasterAddress = process.env.NEXT_PUBLIC_PAYMASTER as Address;
+export const paymasterContract = process.env
+  .NEXT_PUBLIC_PAYMASTER_CONTRACT as Address;
 
 // トランザクション送信に使用するアカウント
 export const bundlerAddress = process.env
   .NEXT_PUBLIC_BUNDLER_ADDRESS as Address;
 
-// エクスプローラURL
-export const explorerURL = process.env.NEXT_PUBLIC_EXPLORER_URL as string;
+// サポートするチェーン
+export const supportedChains: { [id in ChainID]: ChainConfig } = {
+  localhost: {
+    id: "localhost",
+    name: "Localhost",
+    rpc: process.env.NEXT_PUBLIC_LOCAL_RPC || "http://localhost:8545",
+    explorer: process.env.NEXT_PUBLIC_LOCAL_EXPLORER || "http://localhost:4000",
+  },
+  oasys_testnet: {
+    id: "oasys_testnet",
+    name: "Oasys Testnet",
+    rpc: "https://rpc.testnet.oasys.games",
+    explorer: "https://explorer.testnet.oasys.games",
+  },
+  oasys_sandverse: {
+    id: "oasys_sandverse",
+    name: "Oasys Sandverse",
+    rpc: "https://rpc.sandverse.oasys.games",
+    explorer: "https://explorer.sandverse.oasys.games",
+  },
+};
 
-// PaymasterのエクスプローラURL
-export const paymasterURL = `${explorerURL}/address/${paymasterAddress}`;
-
-// BunderのエクスプローラURL
-export const bundlerURL = `${explorerURL}/address/${bundlerAddress}`;
+// ユーザが利用可能なチェーン
+export const activeChains = (
+  process.env.NEXT_PUBLIC_SUPPORTED_CHAINS ||
+  "localhost,oasys_testnet,oasys_sandverse"
+)
+  .split(",")
+  .map((id) => id as ChainID)
+  .filter((id) => supportedChains[id])
+  .map((id) => supportedChains[id]);

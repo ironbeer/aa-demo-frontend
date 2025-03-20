@@ -6,6 +6,7 @@ import {
   startRegistration,
   verifyRegistration,
 } from "@/lib/client";
+import { ChainConfig } from "@/lib/types";
 import { Wallet, useLoggerStore, useWalletStore } from "@/store";
 import {
   Box,
@@ -17,11 +18,13 @@ import {
 } from "@mui/material";
 
 export type CreateWalletDialogProps = {
-  onCreated: (wallet: Wallet) => void;
+  chain: ChainConfig;
+  onCreate: (wallet: Wallet) => void;
 };
 
 export const CreateWalletDialog: React.FC<CreateWalletDialogProps> = ({
-  onCreated,
+  chain,
+  onCreate,
 }) => {
   const { getLogger } = useLoggerStore();
   const { nextNonce } = useWalletStore();
@@ -53,10 +56,10 @@ export const CreateWalletDialog: React.FC<CreateWalletDialogProps> = ({
     const verifyResp = await log.calllog(
       "verifyRegistration",
       verifyRegistration,
-      registResp
+      { response: registResp, chainID: chain.id }
     );
 
-    onCreated(verifyResp);
+    onCreate({ ...verifyResp, nonce: 0 });
   };
 
   // デバイス登録済みのパスキーを使用してウォレットを作成する
@@ -78,13 +81,14 @@ export const CreateWalletDialog: React.FC<CreateWalletDialogProps> = ({
     const passkeyID = authRes.id;
 
     // デバイス認証の結果を利用してウォレットアドレスを取得
+    const nonce = nextNonce(passkeyID);
     const computeRes = await log.calllog(
       "computeWalletAddress",
       computeWalletAddress,
-      { response: authRes, nonce: nextNonce(passkeyID) }
+      { response: authRes, chainID: chain.id, nonce }
     );
 
-    onCreated(computeRes);
+    onCreate({ ...computeRes, nonce });
   };
 
   return (

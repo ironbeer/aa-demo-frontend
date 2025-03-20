@@ -11,6 +11,7 @@ import {
   GenerateUserOperationHashOptionsRequest,
   GenerateUserOperationHashOptionsResponse,
   VerifiedRegistrationResponse,
+  VerifyRegistrationRequest,
 } from "@/lib/types";
 import {
   AuthenticationResponseJSON,
@@ -87,12 +88,12 @@ export const startRegistration = async (
 
 // パスキー登録のデバイス認証の結果をAPIに送信
 export const verifyRegistration = (
-  resp: RegistrationResponseJSON
+  params: VerifyRegistrationRequest
 ): Promise<VerifiedRegistrationResponse> => {
   return wrapfetch(endpoints.verifyRegistration, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(resp),
+    body: JSON.stringify(params),
   });
 };
 
@@ -111,12 +112,12 @@ export const startAuthentication = (
 
 // デバイス認証の結果を利用してウォレットアドレスを取得
 export const computeWalletAddress = (
-  resp: ComputeWalletAddressRequest
+  params: ComputeWalletAddressRequest
 ): Promise<ComputeWalletAddressResponse> => {
   return wrapfetch(endpoints.computeWalletAddress, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(resp),
+    body: JSON.stringify(params),
   });
 };
 

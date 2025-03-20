@@ -1,5 +1,5 @@
 import { generateAPIRoute } from "@/app/api/utils";
-import { paymasterAddress, rpID } from "@/envs/server";
+import { paymasterContract, rpID, supportedChains } from "@/envs/server";
 import {
   computeWalletAddress,
   encodeForCreateAccount,
@@ -17,8 +17,9 @@ import { encodePacked, Hex, hexToBytes, isAddressEqual } from "viem";
 
 export const POST = generateAPIRoute<GenerateUserOperationHashOptionsResponse>(
   async (request: NextRequest) => {
-    const { passkeyID, userOp, walletNonce, usePaymaster } =
+    const { passkeyID, chainID, userOp, walletNonce, usePaymaster } =
       (await request.json()) as GenerateUserOperationHashOptionsRequest;
+    const chain = supportedChains[chainID];
 
     // 指定IDのパスキーが存在するか確認
     const passkey = await datastore.getPasskey(passkeyID);
@@ -27,11 +28,12 @@ export const POST = generateAPIRoute<GenerateUserOperationHashOptionsResponse>(
     }
 
     // userOp.initCodeにCoinbaseSmartWalletFactoryの呼び出しコードを追加
-    const rpc = getPublicClient();
+    const client = getPublicClient(chain.rpc);
     try {
-      const code = await rpc.getCode({ address: userOp.sender });
+      const code = await client.getCode({ address: userOp.sender });
       if (!code || code.length === 0) {
         const { address: expectedSender, owners } = await computeWalletAddress(
+          client,
           Uint8Array.from(passkey.publicKey),
           walletNonce
         );
@@ -49,7 +51,7 @@ export const POST = generateAPIRoute<GenerateUserOperationHashOptionsResponse>(
     if (usePaymaster) {
       userOp.paymasterAndData = encodePacked(
         ["address", "bytes"],
-        [paymasterAddress, "0x"]
+        [paymasterContract, "0x"]
       );
     }
 
@@ -57,7 +59,7 @@ export const POST = generateAPIRoute<GenerateUserOperationHashOptionsResponse>(
     let userOpHash: Hex;
     let challenge: Uint8Array;
     try {
-      const contract = getEntryPoint({ rpc });
+      const contract = getEntryPoint({ client: client });
       userOpHash = (await contract.read.getUserOpHash([userOp])) as Hex;
       challenge = hexToBytes(userOpHash);
     } catch (error) {

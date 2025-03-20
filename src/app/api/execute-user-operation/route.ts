@@ -1,5 +1,10 @@
 import { generateAPIRoute } from "@/app/api/utils";
-import { bundlerPrivateKey, rpID, rpOrigin } from "@/envs/server";
+import {
+  bundlerPrivateKey,
+  rpID,
+  rpOrigin,
+  supportedChains,
+} from "@/envs/server";
 import {
   getPublicClient,
   getUserOpSignature,
@@ -33,8 +38,9 @@ import {
 
 export const POST = generateAPIRoute<ExecuteUserOperationResponse>(
   async (request: NextRequest) => {
-    const { userOp, response } =
+    const { response, chainID, userOp } =
       (await request.json()) as ExecuteUserOperationRequest;
+    const chain = supportedChains[chainID];
 
     // 指定IDのパスキーが存在するか確認
     const passkey = await datastore.getPasskey(response.id);
@@ -89,8 +95,8 @@ export const POST = generateAPIRoute<ExecuteUserOperationResponse>(
     let success: boolean;
     try {
       const client = {
-        public: getPublicClient(),
-        wallet: getWritableClient({ privateKey: bundlerPrivateKey }),
+        public: getPublicClient(chain.rpc),
+        wallet: getWritableClient(chain.rpc, bundlerPrivateKey),
       };
       const entryPoint = getWritableEntryPoint({ client });
       const hash = await entryPoint.write.handleOps([

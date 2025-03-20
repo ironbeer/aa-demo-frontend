@@ -84,16 +84,8 @@ export const CallEditor: React.FC<CallEditorProps> = ({
     });
   };
 
-  const onClickAdd = () => {
-    setCalls([
-      ...calls,
-      {
-        target: "0xF5B1e8E4843F9930C3549399BF55E414Cb5A08E0",
-        value: "0",
-        data: "0x",
-      },
-    ]);
-  };
+  const onClickAdd = () =>
+    setCalls([...calls, { target: "", value: "0", data: "0x" }]);
 
   const onClickDone = () => {
     const validCalls = calls.filter((form, i) => {

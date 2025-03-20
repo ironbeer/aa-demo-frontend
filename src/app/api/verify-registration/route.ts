@@ -1,6 +1,6 @@
 import { generateAPIRoute } from "@/app/api/utils";
-import { rpID, rpOrigin } from "@/envs/server";
-import { computeWalletAddress } from "@/lib/blockchain";
+import { rpID, rpOrigin, supportedChains } from "@/envs/server";
+import { computeWalletAddress, getPublicClient } from "@/lib/blockchain";
 import { datastore } from "@/lib/datastore";
 import {
   Passkey,
@@ -17,14 +17,14 @@ import { Address } from "viem";
 
 export const POST = generateAPIRoute<VerifiedRegistrationResponse>(
   async (request: NextRequest) => {
-    // リクエストが正しいか確認
-    const body = (await request.json()) as VerifyRegistrationRequest;
-    if (!body.id) {
-      return { status: 400, json: { detail: "Missing required fields" } };
-    }
+    const { response, chainID } =
+      (await request.json()) as VerifyRegistrationRequest;
+    const chain = supportedChains[chainID];
 
     // challengeをデコードしてDBから登録開始用Optionsを取得
-    const clientDataJSON = decodeClientDataJSON(body.response.clientDataJSON);
+    const clientDataJSON = decodeClientDataJSON(
+      response.response.clientDataJSON
+    );
     const currentOptions = await datastore.getRegistrationOptions(
       clientDataJSON.challenge
     );
@@ -36,7 +36,7 @@ export const POST = generateAPIRoute<VerifiedRegistrationResponse>(
     let verification: VerifiedRegistrationResponseServer;
     try {
       verification = await verifyRegistrationResponse({
-        response: body,
+        response,
         expectedChallenge: currentOptions.challenge,
         expectedOrigin: rpOrigin,
         expectedRPID: rpID,
@@ -80,6 +80,7 @@ export const POST = generateAPIRoute<VerifiedRegistrationResponse>(
     let address: Address;
     try {
       const { address: computed } = await computeWalletAddress(
+        getPublicClient(chain.rpc),
         Uint8Array.from(newPassKey.publicKey),
         0
       );

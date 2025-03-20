@@ -2,6 +2,7 @@
 
 import {
   CallEditor,
+  ChainSelect,
   CreateWalletDialog,
   LogTable,
   SendTransactionDialog,
@@ -9,10 +10,11 @@ import {
   WalletTable,
 } from "@/components";
 import {
+  ChainConfig,
   CoinbaseSmartWallet_Call,
   ExecuteUserOperationResponse,
 } from "@/lib/types";
-import { Wallet, useLoggerStore, useWalletStore } from "@/store";
+import { Wallet, useChainStore, useLoggerStore, useWalletStore } from "@/store";
 import theme from "@/styles/theme";
 import {
   Alert,
@@ -29,6 +31,7 @@ import { Address } from "viem";
 
 export default function Home() {
   const { logs } = useLoggerStore();
+  const { selected: selectedChain, onSelect: onSelectChain } = useChainStore();
 
   const {
     wallets,
@@ -39,6 +42,10 @@ export default function Home() {
     saveTransaction,
   } = useWalletStore();
   const filterCalls = (sender: Address) => walletCalls[sender] ?? [];
+
+  // チェーン選択ボタンのアンカー
+  const [chainSelectAnchorEl, setChainSelectAnchorEl] =
+    useState<null | HTMLElement>(null);
 
   // ウォレット作成ダイアログの表示フラグ
   const [showWalletDialog, setShowWalletDialog] = useState(false);
@@ -85,10 +92,11 @@ export default function Home() {
 
   // トランザクション送信後のコールバック
   const onSentTransaction = (
+    chain: ChainConfig,
     wallet: Wallet,
     response: ExecuteUserOperationResponse
   ) => {
-    saveTransaction(wallet.address, response);
+    saveTransaction(chain.id, wallet.address, response);
 
     // TXが成功した場合はCallsをクリア
     if (response.success) {
@@ -112,15 +120,39 @@ export default function Home() {
       <Grid2
         container
         justifyContent="center"
-        spacing={6}
+        spacing={4}
         sx={{ width: "80%", mt: 4, mr: "auto", mb: 4, ml: "auto" }}
       >
-        <Grid2 container component="header" size={12} justifyContent="flex-end">
+        <Grid2
+          container
+          component="header"
+          size={12}
+          spacing={2}
+          justifyContent="flex-end"
+        >
+          {/* チェーン選択ボタン */}
+          <Button
+            onClick={(e) => setChainSelectAnchorEl(e.currentTarget)}
+            size="large"
+            variant="outlined"
+            sx={{ textTransform: "none", borderRadius: 6 }}
+          >
+            Network: {selectedChain.name}
+          </Button>
+          <ChainSelect
+            anchorEl={chainSelectAnchorEl}
+            onSelect={(chain) => {
+              onSelectChain(chain);
+              setChainSelectAnchorEl(null);
+            }}
+            onClose={() => setChainSelectAnchorEl(null)}
+          />
+
           {/* ウォレット作成ボタン */}
           <Button
             onClick={() => setShowWalletDialog(true)}
-            variant="contained"
             size="large"
+            variant="outlined"
             color="secondary"
             sx={{ textTransform: "none", borderRadius: 6 }}
           >
@@ -155,7 +187,7 @@ export default function Home() {
                   <Button
                     onClick={() => setActiveSendTransactionWallet(wallet)}
                     disabled={filterCalls(wallet.address).length === 0}
-                    variant="contained"
+                    variant="outlined"
                     sx={{ textTransform: "none" }}
                   >
                     Send Transaction
@@ -198,7 +230,10 @@ export default function Home() {
             borderRadius: 2,
           }}
         >
-          <CreateWalletDialog onCreated={onSubmitCreateWalletForm} />
+          <CreateWalletDialog
+            chain={selectedChain}
+            onCreate={onSubmitCreateWalletForm}
+          />
         </Box>
       </Modal>
 
@@ -249,6 +284,7 @@ export default function Home() {
         >
           {activeSendTransactionWallet && (
             <SendTransactionDialog
+              chain={selectedChain}
               wallet={activeSendTransactionWallet}
               calls={filterCalls(activeSendTransactionWallet.address)}
               onSent={onSentTransaction}

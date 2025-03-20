@@ -1,5 +1,4 @@
-import { explorerURL } from "@/envs/public";
-import { Transactions } from "@/store";
+import { Transactions, useChainStore } from "@/store";
 import LaunchIcon from "@mui/icons-material/Launch";
 import {
   IconButton,
@@ -19,27 +18,38 @@ export type TransactionTableProps = {
 export const TransactionTable: React.FC<TransactionTableProps> = ({
   transactions,
 }) => {
+  const { getChainName, getExplorerLink } = useChainStore();
+
+  const statusLabel = (
+    callStatus: boolean,
+    receiptStatus: "success" | "reverted"
+  ) => {
+    if (receiptStatus === "reverted") return "Reverted"; // TX自体がRevert
+    if (!callStatus) return "Failed"; // TXは成功したがCallが失敗
+    return "Success";
+  };
+
   return (
     <TableContainer>
       <Table size="small">
         <TableHead sx={{ bgcolor: "grey.300" }}>
           <TableRow>
             <TableCell>Date</TableCell>
+            <TableCell>Chain</TableCell>
             <TableCell>Wallet address</TableCell>
             <TableCell>Transaction hash</TableCell>
-            <TableCell>Receipt status</TableCell>
-            <TableCell>Call status</TableCell>
+            <TableCell>Status</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {transactions.map(({ date, sender, tx }) => (
-            <TableRow key={tx.receipt.transaction}>
-              <TableCell sx={{ textWrap: "nowrap" }}>{date}</TableCell>
-              <TableCell>{sender}</TableCell>
+          {transactions.map(({ date, chainID, sender, tx }) => (
+            <TableRow key={tx.receipt.transaction} sx={{ textWrap: "nowrap" }}>
+              <TableCell>{date}</TableCell>
+              <TableCell>{getChainName(chainID)}</TableCell>
               <TableCell>
-                {tx.receipt.transaction}
+                {sender}
                 <a
-                  href={`${explorerURL}/tx/${tx.receipt.transaction}`}
+                  href={getExplorerLink(sender, chainID)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -48,8 +58,21 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                   </IconButton>
                 </a>
               </TableCell>
-              <TableCell>{tx.receipt.status}</TableCell>
-              <TableCell>{tx.success ? "success" : "failed"}</TableCell>
+              <TableCell>
+                {tx.receipt.transaction}
+                <a
+                  href={getExplorerLink(tx.receipt.transaction, chainID)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <IconButton size="small">
+                    <LaunchIcon fontSize="small" />
+                  </IconButton>
+                </a>
+              </TableCell>
+              <TableCell>
+                {statusLabel(tx.success, tx.receipt.status)}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

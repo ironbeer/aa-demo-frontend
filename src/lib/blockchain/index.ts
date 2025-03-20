@@ -1,8 +1,12 @@
 import {
   coinbaseSmartWalletFactoryAddress,
   entryPointAddress,
-  rpcURL,
 } from "@/envs/public";
+import {
+  CoinbaseSmartWallet_Call,
+  CoinbaseSmartWallet_SignatureWrapper,
+  CoinbaseSmartWallet_WebAuthnAuth,
+} from "@/lib/types";
 import {
   AuthenticatorAssertionResponseJSON,
   Base64URLString,
@@ -29,18 +33,13 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { getSignatureRS } from "../crypto";
-import {
-  CoinbaseSmartWallet_Call,
-  CoinbaseSmartWallet_SignatureWrapper,
-  CoinbaseSmartWallet_WebAuthnAuth,
-} from "../types";
-import CoinbaseSmartWalletABI from "./abis/CoinbaseSmartWallet.json";
+import coinbaseSmartWalletABI from "./abis/CoinbaseSmartWallet.json";
 import coinbaseSmartWalletFactoryABI from "./abis/CoinbaseSmartWalletFactory.json";
 import entryPointABI from "./abis/IEntryPoint.json";
 import tokenPaymasterABI from "./abis/TokenPaymaster.json";
 
 type GetContractParams = {
-  rpc?: PublicClient;
+  client: PublicClient;
   address?: Address;
   abi?: Abi;
 };
@@ -60,7 +59,7 @@ let browserClient: PublicClient;
 /**
  * RPCクライアント取得
  */
-export const getPublicClient = (url = rpcURL): PublicClient => {
+export const getPublicClient = (url: string): PublicClient => {
   // ブラウザにはシングルトンを返す
   if (typeof window !== "undefined") {
     if (!browserClient) {
@@ -76,21 +75,22 @@ export const getPublicClient = (url = rpcURL): PublicClient => {
 /**
  * トランザクション可能なRPCクライアント取得
  */
-export const getWritableClient = (opts: {
-  privateKey: Hex;
-  url?: string;
-}): WalletClient => {
-  const account = privateKeyToAccount(opts.privateKey);
-  return createWalletClient({ transport: http(opts.url || rpcURL), account });
+export const getWritableClient = (
+  url: string,
+  privateKey: Hex
+): WalletClient => {
+  const account = privateKeyToAccount(privateKey);
+  return createWalletClient({ transport: http(url), account });
 };
 
 /**
  * EntryPointのインスタンスを取得
  */
-export const getEntryPoint = (params?: GetContractParams) => {
-  const client = params?.rpc || getPublicClient();
-  const address = params?.address || entryPointAddress;
-  const abi = params?.abi || entryPointABI;
+export const getEntryPoint = ({
+  client,
+  address = entryPointAddress,
+  abi = entryPointABI as Abi,
+}: GetContractParams) => {
   return getContract({ client, address, abi });
 };
 export const getWritableEntryPoint = ({
@@ -98,20 +98,17 @@ export const getWritableEntryPoint = ({
   address = entryPointAddress,
   abi = entryPointABI as Abi,
 }: GetWritableContractParams) => {
-  return getContract({
-    address,
-    abi,
-    client,
-  });
+  return getContract({ client, address, abi });
 };
 
 /**
  * CoinbaseSmartWalletFactoryのインスタンスを取得
  */
-export const getCoinbaseSmartWalletFactory = (params?: GetContractParams) => {
-  const client = params?.rpc || getPublicClient();
-  const address = params?.address || coinbaseSmartWalletFactoryAddress;
-  const abi = params?.abi || coinbaseSmartWalletFactoryABI;
+export const getCoinbaseSmartWalletFactory = ({
+  client,
+  address = coinbaseSmartWalletFactoryAddress,
+  abi = coinbaseSmartWalletFactoryABI as Abi,
+}: GetContractParams) => {
   return getContract({ client, address, abi });
 };
 
@@ -142,9 +139,9 @@ export const isHexEqual = (a: Hex, b: Hex) => {
  * CoinbaseSmartWalletFactoryを利用してウォレットアドレスを計算
  */
 export const computeWalletAddress = async (
+  client: PublicClient,
   publicKey: Uint8Array,
-  nonce: number,
-  opts?: { rpc?: PublicClient }
+  nonce: number
 ): Promise<{ address: Address; owners: Hex[] }> => {
   // 公開鍵からx,y座標を取得
   const coseKey = decodeCredentialPublicKey(publicKey);
@@ -159,7 +156,7 @@ export const computeWalletAddress = async (
 
   // x,yを連結したbytesがウォレットの所有者になる
   const owners = [uint8ArrToHex(Uint8Array.from([...x, ...y]))];
-  const contract = getCoinbaseSmartWalletFactory({ rpc: opts?.rpc });
+  const contract = getCoinbaseSmartWalletFactory({ client });
   const address = await contract.read.createAccount([owners, nonce]);
   return { address: address as Address, owners: owners as Hex[] };
 };
@@ -171,7 +168,7 @@ export const encodeCallsForExecuteBatch = (
   calls: CoinbaseSmartWallet_Call[]
 ): Hex => {
   return encodeFunctionData({
-    abi: CoinbaseSmartWalletABI,
+    abi: coinbaseSmartWalletABI,
     functionName: "executeBatch",
     args: [calls],
   });
@@ -278,7 +275,7 @@ export const getUserOpSignature = (
 };
 
 export {
-  CoinbaseSmartWalletABI,
+  coinbaseSmartWalletABI,
   coinbaseSmartWalletFactoryABI,
   entryPointABI,
   tokenPaymasterABI,

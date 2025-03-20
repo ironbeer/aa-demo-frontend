@@ -1,5 +1,4 @@
-import { explorerURL } from "@/envs/public";
-import { Wallet, Wallets } from "@/store";
+import { useChainStore, Wallet, Wallets } from "@/store";
 import LaunchIcon from "@mui/icons-material/Launch";
 import {
   IconButton,
@@ -21,6 +20,8 @@ export const WalletTable: React.FC<WalletTableProps> = ({
   wallets,
   renderActions,
 }) => {
+  const { getExplorerLink } = useChainStore();
+
   return (
     <TableContainer>
       <Table size="small">
@@ -38,7 +39,7 @@ export const WalletTable: React.FC<WalletTableProps> = ({
                 <TableCell>
                   {wallet.address}
                   <a
-                    href={`${explorerURL}/address/${wallet.address}`}
+                    href={getExplorerLink(wallet.address)}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

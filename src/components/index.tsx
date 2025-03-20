@@ -4,3 +4,4 @@ export * from "./LogTable";
 export * from "./SendTransactionDialog";
 export * from "./TransactionTable";
 export * from "./WalletTable";
+export * from "./ChainSelect";

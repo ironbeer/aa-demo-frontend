@@ -52,7 +52,7 @@ export type APIError = { detail: string | object };
  */
 export type GenerateRegistrationOptionsRequest = {
   // パスキーの名前
-  keyName?: string;
+  keyName: string;
 };
 
 /**
@@ -64,7 +64,10 @@ export type GenerateRegistrationOptionsResponse =
 /**
  * パスキー登録デバイス認証結果検証APIのリクエスト型
  */
-export type VerifyRegistrationRequest = RegistrationResponseJSON;
+export type VerifyRegistrationRequest = {
+  response: RegistrationResponseJSON;
+  chainID: ChainID;
+};
 
 /**
  * パスキー登録デバイス認証結果検証APIのレスポンス型
@@ -86,6 +89,7 @@ export type GenerateAuthenticationOptionsResponse =
  */
 export type ComputeWalletAddressRequest = {
   response: AuthenticationResponseJSON;
+  chainID: ChainID;
   nonce: number; // ナンス値、ウォレットアドレス計算に使用される
 };
 
@@ -94,7 +98,6 @@ export type ComputeWalletAddressRequest = {
  */
 export type ComputeWalletAddressResponse = {
   passkeyID: string;
-  nonce: number;
   address: Address;
 };
 
@@ -149,6 +152,7 @@ export type CoinbaseSmartWallet_SignatureWrapper = {
  */
 export type GenerateUserOperationHashOptionsRequest = {
   passkeyID: Base64URLString;
+  chainID: ChainID;
   userOp: EntryPoint_UserOperation;
   walletNonce: number;
   usePaymaster: boolean;
@@ -168,6 +172,7 @@ export type GenerateUserOperationHashOptionsResponse = {
  */
 export type ExecuteUserOperationRequest = {
   response: AuthenticationResponseJSON;
+  chainID: ChainID;
   userOp: EntryPoint_UserOperation;
 };
 
@@ -181,4 +186,15 @@ export type ExecuteUserOperationResponse = {
     gasUsed: number;
     status: "success" | "reverted";
   };
+};
+
+/**
+ * チェーン情報
+ */
+export type ChainID = "localhost" | "oasys_testnet" | "oasys_sandverse";
+export type ChainConfig = {
+  id: ChainID;
+  name: string;
+  rpc: string;
+  explorer: string;
 };
