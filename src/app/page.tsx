@@ -121,7 +121,7 @@ export default function Home() {
         container
         justifyContent="center"
         spacing={4}
-        sx={{ width: "80%", mt: 4, mr: "auto", mb: 4, ml: "auto" }}
+        sx={{ width: "95%", mt: 4, mr: "auto", mb: 4, ml: "auto" }}
       >
         <Grid2
           container
