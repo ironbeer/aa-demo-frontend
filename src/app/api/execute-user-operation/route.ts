@@ -36,6 +36,8 @@ import {
   parseEventLogs,
 } from "viem";
 
+export const maxDuration = 30;
+
 export const POST = generateAPIRoute<ExecuteUserOperationResponse>(
   async (request: NextRequest) => {
     const { response, chainID, userOp } =
