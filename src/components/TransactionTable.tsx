@@ -31,7 +31,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
 
   return (
     <TableContainer>
-      <Table size="small">
+      <Table size="small" sx={{ textWrap: "nowrap" }}>
         <TableHead sx={{ bgcolor: "grey.300" }}>
           <TableRow>
             <TableCell>Date</TableCell>
@@ -43,7 +43,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
         </TableHead>
         <TableBody>
           {transactions.map(({ date, chainID, sender, tx }) => (
-            <TableRow key={tx.receipt.transaction} sx={{ textWrap: "nowrap" }}>
+            <TableRow key={tx.receipt.transaction}>
               <TableCell>{date}</TableCell>
               <TableCell>{getChainName(chainID)}</TableCell>
               <TableCell>

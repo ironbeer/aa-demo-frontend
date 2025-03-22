@@ -1,3 +1,4 @@
+import { Box } from "@mui/material";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import type { Metadata } from "next";
 import { Roboto_Mono } from "next/font/google";
@@ -17,9 +18,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={robot.className}>
+      <Box
+        component="body"
+        className={robot.className}
+        sx={{ bgcolor: "background.default" }}
+      >
         <AppRouterCacheProvider>{children}</AppRouterCacheProvider>
-      </body>
+      </Box>
     </html>
   );
 }

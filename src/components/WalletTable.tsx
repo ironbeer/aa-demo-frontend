@@ -24,7 +24,7 @@ export const WalletTable: React.FC<WalletTableProps> = ({
 
   return (
     <TableContainer>
-      <Table size="small">
+      <Table size="small" sx={{ textWrap: "nowrap" }}>
         <TableHead sx={{ bgcolor: "grey.300" }}>
           <TableRow>
             <TableCell>Wallet address</TableCell>
